@@ -6,7 +6,7 @@
 
 /*! \file utils/surfer/cobound/outgoing/outgoingnamer.h
  *  \brief Names a surface's outgoing curves by drawing them
- *  (knotbuilder::DiagramDrawer) instead of drilling their complement.
+ *  (diagramtriangulation::DiagramDrawer) instead of drilling their complement.
  *
  *  The outgoing boundary of the search's thickening is a copy of
  *  knotbuilder's triangulation T of the incoming link (OutgoingMap, thickening.h), so
@@ -113,7 +113,7 @@ class OutgoingNamer : public BoundaryNamer {
 
     ComplementNamer complement_; ///< everything name() does not draw
     OutgoingMap map_;
-    knotbuilder::DiagramDrawer drawer_;
+    diagramtriangulation::DiagramDrawer drawer_;
     linknaming::DiagramNamer diagramNamer_;
     std::unique_ptr<linknaming::LinkNamer> linkNamer_;
     mutable std::mutex orientedMutex_;

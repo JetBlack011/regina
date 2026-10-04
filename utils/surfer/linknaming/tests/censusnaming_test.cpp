@@ -196,8 +196,8 @@ void test_name_link_unlink() {
     // "non-alternating regression" test uses, already independently
     // checked there (isSphere(), 2 components) to be two split, unknotted
     // loops.
-    knotbuilder::PDCode pd = {{0, 3, 1, 2}, {1, 3, 0, 2}};
-    auto [tri, edges, reversed] = knotbuilder::buildLink(pd);
+    diagramtriangulation::PDCode pd = {{0, 3, 1, 2}, {1, 3, 0, 2}};
+    auto [tri, edges, reversed] = diagramtriangulation::buildLink(pd);
     Link link(tri, edges);
 
     EXPECT_EQ(link.countComponents(), 2,
@@ -213,8 +213,8 @@ void test_name_link_unlink() {
 // (unflipped) Hopf link has the same component count as the unlink fixture
 // above, but its complement (T^2 x I) is not a handlebody at all.
 void test_name_link_hopf_not_unknot() {
-    knotbuilder::PDCode pd = knotbuilder::parsePDCode("1 4 2 3 3 2 4 1");
-    auto [tri, edges, reversed] = knotbuilder::buildLink(pd);
+    diagramtriangulation::PDCode pd = diagramtriangulation::parsePDCode("1 4 2 3 3 2 4 1");
+    auto [tri, edges, reversed] = diagramtriangulation::buildLink(pd);
     Link link(tri, edges);
 
     EXPECT_EQ(link.countComponents(), 2,
@@ -241,8 +241,8 @@ void test_pachner_search_policy() {
     census::retriangulateTimeBudgetSeconds.store(1);
 
     {
-        knotbuilder::PDCode pd = knotbuilder::parsePDCode("1 4 2 3 3 2 4 1");
-        auto [tri, edges, reversed] = knotbuilder::buildLink(pd);
+        diagramtriangulation::PDCode pd = diagramtriangulation::parsePDCode("1 4 2 3 3 2 4 1");
+        auto [tri, edges, reversed] = diagramtriangulation::buildLink(pd);
         Link hopf(tri, edges);
         census::nameComplement(hopf);
         census::nameComplement(hopf); // a repeat must not retry either
@@ -253,9 +253,9 @@ void test_pachner_search_policy() {
               "Pachner search");
 
     {
-        knotbuilder::PDCode pd =
-            knotbuilder::parsePDCode("[[1;5;2;4];[3;1;4;6];[5;3;6;2]]");
-        auto [tri, edges, reversed] = knotbuilder::buildLink(pd);
+        diagramtriangulation::PDCode pd =
+            diagramtriangulation::parsePDCode("[[1;5;2;4];[3;1;4;6];[5;3;6;2]]");
+        auto [tri, edges, reversed] = diagramtriangulation::buildLink(pd);
         Link trefoil(tri, edges);
         census::nameComplement(trefoil);
     }

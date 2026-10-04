@@ -11,7 +11,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
-knotbuilder::Block::Block(regina::Triangulation<3> &tri) {
+diagramtriangulation::Block::Block(regina::Triangulation<3> &tri) {
     // Fixed 14-tetrahedron gluing pattern for one crossing: 6 "core"
     // tetrahedra encoding the over/under strand crossing itself, plus 8
     // "wall" tetrahedra (2 per side) forming the 4 walls glue() joins to
@@ -117,7 +117,7 @@ regina::Perm<4> matchMiddle(const MiddleRole &mine, const MiddleRole &theirs) {
 }
 } // namespace
 
-void knotbuilder::Block::glue(size_t myWall, Block &other, size_t otherWall) {
+void diagramtriangulation::Block::glue(size_t myWall, Block &other, size_t otherWall) {
     if (*this == other &&
         std::max(myWall, otherWall) - std::min(myWall, otherWall) == 2)
         throw regina::InvalidArgument("Invalid block gluing! A block cannot be "
@@ -163,7 +163,7 @@ using PDPos = std::pair<int, int>;
 // always the overcrossing, so the PD code doesn't define its own
 // orientation -- gets an arbitrary but still self-consistent direction
 // from the second loop, exactly as pd-impl.h does for the same case.
-std::vector<int> computeStrandDirections(const knotbuilder::PDCode &pdcode,
+std::vector<int> computeStrandDirections(const diagramtriangulation::PDCode &pdcode,
                                          const Strands &strands) {
     std::vector<int> dir(strands.size(), 0);
 
@@ -211,7 +211,7 @@ std::vector<int> computeStrandDirections(const knotbuilder::PDCode &pdcode,
 // Whether position `pos` of crossing `n` is the PD-intended arrival point
 // of whichever strand label occupies it -- i.e. whether that strand's
 // directed span (per `dir`, computed above) ends rather than begins here.
-bool isEntry(const knotbuilder::PDCode &pdcode, const Strands &strands,
+bool isEntry(const diagramtriangulation::PDCode &pdcode, const Strands &strands,
             const std::vector<int> &dir, int n, int pos) {
     int label = pdcode[n][pos];
     PDPos here{n, pos};
@@ -221,7 +221,7 @@ bool isEntry(const knotbuilder::PDCode &pdcode, const Strands &strands,
 }
 } // namespace
 
-knotbuilder::TriangulationWithLink knotbuilder::buildLink(PDCode pdcode) {
+diagramtriangulation::TriangulationWithLink diagramtriangulation::buildLink(PDCode pdcode) {
     size_t numCrossings = pdcode.size();
 
     std::vector<std::vector<std::pair<int, int>>> strands(2 * numCrossings);
@@ -281,12 +281,12 @@ knotbuilder::TriangulationWithLink knotbuilder::buildLink(PDCode pdcode) {
     return {std::move(tri), std::move(edges), std::move(reversed)};
 }
 
-const std::vector<regina::Edge<3> *> knotbuilder::Block::getLinkEdges() const {
+const std::vector<regina::Edge<3> *> diagramtriangulation::Block::getLinkEdges() const {
     return {core_[4]->edge(1, 3), core_[4]->edge(0, 2), core_[5]->edge(1, 3)};
 }
 
 std::vector<bool>
-knotbuilder::Block::getLinkEdgeDirections(bool walls1IsEntry) const {
+diagramtriangulation::Block::getLinkEdgeDirections(bool walls1IsEntry) const {
     // Order matches getLinkEdges(): {core_[4]->edge(1,3), core_[4]->edge(0,2),
     // core_[5]->edge(1,3)}.
     //
@@ -327,8 +327,8 @@ struct VertexDescriptor {
 };
 } // namespace
 
-knotbuilder::TriangulationWithLink
-knotbuilder::reduceVertices(const regina::Triangulation<3> &tri,
+diagramtriangulation::TriangulationWithLink
+diagramtriangulation::reduceVertices(const regina::Triangulation<3> &tri,
                             const std::vector<const regina::Edge<3> *> &edges) {
     regina::Triangulation<3> newTri(tri);
 

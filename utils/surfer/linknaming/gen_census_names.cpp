@@ -8,14 +8,14 @@
 //  Genus-4D" rows, deduped to one row per base name -- see
 //  linknaming::stripOrientationTag()'s use below, since component
 //  orientation doesn't change the complement), builds the complement the same way
-//  surfer.cpp/verifyslicegenus.cpp does at runtime (knotbuilder::buildLink()
+//  surfer.cpp/verifyslicegenus.cpp does at runtime (diagramtriangulation::buildLink()
 //  -> Knot/Link -> buildComplement()) and records every
 //  regina::Census::lookup() hit against it.
 //
 //  This produces the raw data behind utils/surfer/knot_census_names.csv
 //  (and, with --links, utils/surfer/link_census_names.csv), which
-//  utils/surfer/tests/gen_knot_names_header.py then turns into
-//  utils/surfer/linknames.h (a census-name -> classical-name lookup table
+//  linknaming/gen_census_names_header.py then turns into
+//  linknaming/census/censusnames.h (a census-name -> classical-name lookup table
 //  covering both Rolfsen knot names and Thistlethwaite link names).
 //
 //  Usage:
@@ -146,7 +146,7 @@ int crossingsFromName(const std::string &name) {
 // count from (see crossingsFromName()'s doc comment) -- derive it from the
 // PD code itself instead, the same pattern verifyslicegenus.cpp's
 // loadInputCsv() uses for link input rows.
-int crossingsFromPDCode(const knotbuilder::PDCode &pdcode) {
+int crossingsFromPDCode(const diagramtriangulation::PDCode &pdcode) {
     return static_cast<int>(pdcode.size());
 }
 
@@ -176,8 +176,8 @@ struct NamedHit {
 };
 
 std::pair<std::string, std::vector<NamedHit>>
-censusHitsFor(const knotbuilder::PDCode &pdcode) {
-    auto [tri, edges, reversed] = knotbuilder::buildLink(pdcode);
+censusHitsFor(const diagramtriangulation::PDCode &pdcode) {
+    auto [tri, edges, reversed] = diagramtriangulation::buildLink(pdcode);
     Link link(tri, edges);
     regina::Triangulation<3> complement = link.buildComplement();
     std::string isoSig = complement.isoSig();
@@ -196,7 +196,7 @@ censusHitsFor(const knotbuilder::PDCode &pdcode) {
     // The RUNTIME already handles this. A run without a goal defaults
     // census::retriangulateOnMiss on, so nameComplement() falls through to
     // retriangulateAndLookup() and comes back with "L108014". Without the
-    // same second rung here, this generator writes a blank row, linknames.h
+    // same second rung here, this generator writes a blank row, censusnames.h
     // gets no L108014 -> 8_14 entry, and every such object then shows up in
     // the results as a raw census name that nothing can tie back to a
     // classical one. That is exactly the gap that left 89 unnamed
@@ -210,10 +210,10 @@ censusHitsFor(const knotbuilder::PDCode &pdcode) {
             complement, /*height=*/2, /*candidateBudget=*/50000,
             std::chrono::seconds(60))) {
         // retriangulateAndLookup() returns censusLookupName()'s formatting,
-        // which is already translated through linknames.h: "8_10 (o9_43874 :
+        // which is already translated through censusnames.h: "8_10 (o9_43874 :
         // #1)" on a hit there, or the bare raw name on a miss. This column
         // must hold the RAW census name -- it is the key the regenerated
-        // linknames.h is built on, so a translated value here would emit
+        // censusnames.h is built on, so a translated value here would emit
         // useless self-referential entries like 3_1 -> 3_1 and, worse, would
         // silently drop the raw name that the runtime actually produces.
         std::string raw = *name;
@@ -243,7 +243,7 @@ struct Counters {
 void processRow(const std::string &name, int crossings,
                 const std::string &pdStr, Counters &counters) {
     try {
-        knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pdStr);
+        diagramtriangulation::PDCode pdcode = diagramtriangulation::parsePDCode(pdStr);
         auto [isoSig, censusHits] = censusHitsFor(pdcode);
         if (censusHits.empty()) {
             writeRow(name, crossings, "", "", isoSig);
@@ -318,9 +318,9 @@ void runLinks(std::istream &file, int maxCrossings) {
                        // orientation variant
         ++deduped;
 
-        knotbuilder::PDCode pdcode;
+        diagramtriangulation::PDCode pdcode;
         try {
-            pdcode = knotbuilder::parsePDCode(pdStr);
+            pdcode = diagramtriangulation::parsePDCode(pdStr);
         } catch (const std::exception &e) {
             std::cerr << "\nFAILED: " << baseName << ": " << e.what() << "\n";
             ++c.failures;

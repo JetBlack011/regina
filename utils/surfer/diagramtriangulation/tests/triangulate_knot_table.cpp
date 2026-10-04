@@ -2,7 +2,7 @@
 //  triangulate_knot_table.cpp
 //
 //  Standalone validation utility (not a CTest test -- see CMakeLists.txt):
-//  sweeps knotbuilder::buildLink() over every PD code in a CSV file (one
+//  sweeps diagramtriangulation::buildLink() over every PD code in a CSV file (one
 //  "Name,PD Notation" row per line, as downloaded from KnotInfo,
 //  https://knotinfo.org/) and checks that each produces a valid, closed S³
 //  triangulation with a well-formed Link. Reports any failures individually
@@ -86,7 +86,7 @@ int main(int argc, char *argv[]) {
         std::string pdStr = line.substr(comma + 1);
 
         ++total;
-        knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pdStr);
+        diagramtriangulation::PDCode pdcode = diagramtriangulation::parsePDCode(pdStr);
         if (pdcode.empty()) {
             clearProgressLine();
             std::cout << "EMPTY PD CODE: " << name << "\n";
@@ -98,7 +98,7 @@ int main(int argc, char *argv[]) {
         regina::Triangulation<3> tri;
         std::vector<const regina::Edge<3> *> edges;
         try {
-            auto result = knotbuilder::buildLink(pdcode);
+            auto result = diagramtriangulation::buildLink(pdcode);
             tri = std::move(result.tri);
             edges = std::move(result.edges);
         } catch (const std::exception &e) {

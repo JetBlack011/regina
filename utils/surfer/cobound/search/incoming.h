@@ -26,7 +26,7 @@
 namespace search {
 
 /**
- * The incoming diagram's PD-tagged edges (knotbuilder::TriangulationWithLink's
+ * The incoming diagram's PD-tagged edges (diagramtriangulation::TriangulationWithLink's
  * `edges`/`reversed`), translated into directed pairs of *vertex indices*
  * within some triangulation combinatorially isomorphic to the diagram's own
  * knotbuilder triangulation -- normally the ambient incoming boundary

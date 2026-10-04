@@ -1040,7 +1040,7 @@ coneTriangleIndices(const Skeleton<4, 2> &skeleton,
 void test_resolve_unlinked_seeded_search() {
     std::cout << "\n--- SurfaceSearch: --resolve-unlinked accepts the "
                  "resolvable seed, and only adds resolvable surfaces ---\n";
-    auto result = knotbuilder::buildLink({{0, 3, 1, 2}, {1, 3, 0, 2}});
+    auto result = diagramtriangulation::buildLink({{0, 3, 1, 2}, {1, 3, 0, 2}});
     const regina::Triangulation<4> coned = coneOver(result.tri);
     Skeleton<4, 2> probeSkeleton(coned);
     std::vector<int> seed =

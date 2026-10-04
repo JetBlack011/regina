@@ -47,7 +47,7 @@ namespace solverinputs {
 std::unordered_map<std::string, std::string> loadNameAliases(const std::filesystem::path &path);
 
 /** `name` as loadNameAliases() keys it: any " : #N" census-hit suffix
- *  stripped, matching linknames::name()'s own convention. */
+ *  stripped, matching census::name()'s own convention. */
 std::string aliasKey(const std::string &name);
 
 /**

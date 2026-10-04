@@ -43,7 +43,7 @@ int main(int argc, char *argv[]) {
     }
 
     std::string pdcode_str = argv[1];
-    knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pdcode_str);
+    diagramtriangulation::PDCode pdcode = diagramtriangulation::parsePDCode(pdcode_str);
 
     std::cout << "[*] Building link with " << pdcode.size() << " crossings.\n";
 
@@ -51,9 +51,9 @@ int main(int argc, char *argv[]) {
         usage(argv[0], "Please provide a valid PD Code.");
     }
 
-    knotbuilder::TriangulationWithLink result;
+    diagramtriangulation::TriangulationWithLink result;
     try {
-        result = knotbuilder::buildLink(pdcode);
+        result = diagramtriangulation::buildLink(pdcode);
     } catch (const regina::InvalidArgument &e) {
         usage(argv[0], "Please provide a valid PD Code.");
     }

@@ -30,7 +30,7 @@ std::vector<solver::InputRow> loadInputCsv(const std::filesystem::path &path) {
     // Crossing count is derived from the PD code itself (works uniformly
     // for both knot names like "13n_1109" and link names like "L10a1{0}",
     // which have no leading digit run to parse) rather than from `name`.
-    row.crossings = static_cast<int>(knotbuilder::parsePDCode(pd).size());
+    row.crossings = static_cast<int>(diagramtriangulation::parsePDCode(pd).size());
     rows.push_back(std::move(row));
   }
   return rows;
@@ -50,7 +50,7 @@ solver::InputRow oneDiagram(const std::string &name, const std::string &pd,
           row.lo = g4->first;
           row.hi = g4->second;
         }
-  row.crossings = static_cast<int>(knotbuilder::parsePDCode(pd).size());
+  row.crossings = static_cast<int>(diagramtriangulation::parsePDCode(pd).size());
   return row;
 }
 

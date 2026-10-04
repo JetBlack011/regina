@@ -304,7 +304,7 @@ SignatureTable SignatureTable::fromTables(const std::string &knotTable,
     // complement route (it did, once, when the PD codes were read with
     // 0-based labels).
     // The PD codes as Regina reads them (linknaming::linkFromTablePD()):
-    // labels as written, 1..2n. Not knotbuilder::parsePDCode(), which
+    // labels as written, 1..2n. Not diagramtriangulation::parsePDCode(), which
     // renumbers from 0.
     SignatureTable t;
     if (!knotTable.empty())

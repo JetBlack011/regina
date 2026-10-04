@@ -76,17 +76,17 @@ namespace {
 // Passed through parsePDCode(), never as PDCode literals: buildLink() wants
 // 0-indexed labels, and parsePDCode() is what normalizes Regina's 1-indexed
 // ones.
-const knotbuilder::PDCode kUnlink2PD = {{0, 3, 1, 2}, {1, 3, 0, 2}};
-const knotbuilder::PDCode kUnlink3PD =
-    knotbuilder::parsePDCode("3 1 4 2 6 1 3 2 7 5 8 6 8 5 7 4");
-const knotbuilder::PDCode kWhiteheadPD =
-    knotbuilder::parsePDCode("1 7 2 8 3 10 4 9 5 2 6 3 8 5 9 4 10 6 7 1");
-const knotbuilder::PDCode kBorromeanPD = knotbuilder::parsePDCode(
+const diagramtriangulation::PDCode kUnlink2PD = {{0, 3, 1, 2}, {1, 3, 0, 2}};
+const diagramtriangulation::PDCode kUnlink3PD =
+    diagramtriangulation::parsePDCode("3 1 4 2 6 1 3 2 7 5 8 6 8 5 7 4");
+const diagramtriangulation::PDCode kWhiteheadPD =
+    diagramtriangulation::parsePDCode("1 7 2 8 3 10 4 9 5 2 6 3 8 5 9 4 10 6 7 1");
+const diagramtriangulation::PDCode kBorromeanPD = diagramtriangulation::parsePDCode(
     "1 10 2 11 3 9 4 12 5 2 6 3 7 1 8 4 9 6 10 7 11 5 12 8");
 
 void test_certifies_unlink_positive() {
     {
-        auto [tri, edges, reversed] = knotbuilder::buildLink(kUnlink2PD);
+        auto [tri, edges, reversed] = diagramtriangulation::buildLink(kUnlink2PD);
         EXPECT_EQ(complement::certifiesUnlink(tri, edges, 2), true,
                   "the 2-component unlink is certified");
         EXPECT_EQ(complement::certifiesUnlink(tri, edges, 1), false,
@@ -100,7 +100,7 @@ void test_certifies_unlink_positive() {
                   "one component of it alone is certified the unknot");
     }
     {
-        auto [tri, edges, reversed] = knotbuilder::buildLink(kUnlink3PD);
+        auto [tri, edges, reversed] = diagramtriangulation::buildLink(kUnlink3PD);
         EXPECT_EQ(Link(tri, edges).countComponents(), 3,
                   "fixture sanity: the R2-tangled unlink has 3 components");
         EXPECT_EQ(complement::certifiesUnlink(tri, edges, 3), true,
@@ -109,9 +109,9 @@ void test_certifies_unlink_positive() {
 }
 
 void test_certifies_unlink_negative() {
-    auto check = [](const char *label, const knotbuilder::PDCode &pd,
+    auto check = [](const char *label, const diagramtriangulation::PDCode &pd,
                     size_t m) {
-        auto [tri, edges, reversed] = knotbuilder::buildLink(pd);
+        auto [tri, edges, reversed] = diagramtriangulation::buildLink(pd);
         EXPECT_EQ(Link(tri, edges).countComponents(), m,
                   std::string("fixture sanity: ") + label + " has " +
                       std::to_string(m) + " components");
@@ -125,14 +125,14 @@ void test_certifies_unlink_negative() {
                   std::string(label) +
                       ": its complement's group keeps at least one relation");
     };
-    check("Hopf link", knotbuilder::parsePDCode("1 4 2 3 3 2 4 1"), 2);
+    check("Hopf link", diagramtriangulation::parsePDCode("1 4 2 3 3 2 4 1"), 2);
     check("Whitehead link (lk = 0)", kWhiteheadPD, 2);
     check("Borromean rings (pairwise lk = 0)", kBorromeanPD, 3);
-    check("trefoil", knotbuilder::parsePDCode("1 4 2 5 3 6 4 1 5 2 6 3"), 1);
+    check("trefoil", diagramtriangulation::parsePDCode("1 4 2 5 3 6 4 1 5 2 6 3"), 1);
 }
 
 void test_certifies_unlink_malformed() {
-    auto [tri, edges, reversed] = knotbuilder::buildLink(kUnlink2PD);
+    auto [tri, edges, reversed] = diagramtriangulation::buildLink(kUnlink2PD);
     std::vector<const regina::Edge<3> *> dropped(edges.begin() + 1,
                                                  edges.end());
     EXPECT_EQ(complement::certifiesUnlink(tri, dropped, 2), false,
@@ -237,7 +237,7 @@ void test_cap_in_cone_detects_knotted_arc() {
     for (const Case &c :
          {Case{"R1-kinked unknot", "1 2 2 1", true},
           Case{"trefoil", "1 4 2 5 3 6 4 1 5 2 6 3", false}}) {
-        auto result = knotbuilder::buildLink(knotbuilder::parsePDCode(c.pd));
+        auto result = diagramtriangulation::buildLink(diagramtriangulation::parsePDCode(c.pd));
         BallWithArc fixture;
         bool built = buildBallWithArc(result.tri, result.edges, fixture);
         EXPECT_EQ(built, true,

@@ -258,8 +258,8 @@ OutgoingMap::OutgoingMap(const regina::Triangulation<3> &knotT,
         tTail_[e] = knotT.edge(e)->vertex(0)->index();
 }
 
-knotbuilder::EdgeCycle OutgoingMap::carry(const OutgoingCurve &curve) const {
-    knotbuilder::EdgeCycle out;
+diagramtriangulation::EdgeCycle OutgoingMap::carry(const OutgoingCurve &curve) const {
+    diagramtriangulation::EdgeCycle out;
     out.reserve(curve.size());
     for (const OutgoingEdge &oe : curve) {
         size_t e = edgeToT_.at(oe.edge->index());
@@ -270,7 +270,7 @@ knotbuilder::EdgeCycle OutgoingMap::carry(const OutgoingCurve &curve) const {
     return out;
 }
 
-knotbuilder::EdgeCycle OutgoingMap::carryCycle(
+diagramtriangulation::EdgeCycle OutgoingMap::carryCycle(
     const std::vector<const regina::Edge<3> *> &edges) const {
     // One simple closed curve, run from the first edge's vertex(0).
     const auto steps = edgecycles::walkClosedCurve(edgecycles::endsOf(edges));
@@ -303,8 +303,8 @@ int countLinkComponents(const std::vector<const regina::Edge<3> *> &edges) {
 
 void buildAmbient(const std::string &pdNotation, int thickenLayers,
                   int collarLayers, ThickenedLink &thickened) {
-    thickened.pdcode = knotbuilder::parsePDCode(pdNotation);
-    thickened.link = knotbuilder::buildLink(thickened.pdcode);
+    thickened.pdcode = diagramtriangulation::parsePDCode(pdNotation);
+    thickened.link = diagramtriangulation::buildLink(thickened.pdcode);
 
     auto &[t2, edges2, reversed2] = thickened.link;
     thickened.componentCount = countLinkComponents(edges2);

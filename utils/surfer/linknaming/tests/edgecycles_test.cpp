@@ -161,7 +161,8 @@ void test_count_closed_curves() {
 // counts agree, every input order gives the same curves after sorting, and
 // Link's components are walkCurves() of its sorted edges.
 void test_real_link() {
-    const knotbuilder::TriangulationWithLink built = knotbuilder::buildLink(knotbuilder::parsePDCode(
+    const diagramtriangulation::TriangulationWithLink built =
+        diagramtriangulation::buildLink(diagramtriangulation::parsePDCode(
         "PD[X[6; 1; 7; 2]; X[12; 8; 9; 7]; X[4; 12; 1; 11]; X[10; 5; 11; 6]; "
         "X[8; 4; 5; 3]; X[2; 9; 3; 10]]"));
     const std::vector<EdgeEnds> ends = endsOf(built.edges);

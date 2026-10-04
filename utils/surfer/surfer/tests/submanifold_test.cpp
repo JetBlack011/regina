@@ -973,11 +973,11 @@ void auditKnotSurface(const std::string &label, const std::string &pdCode,
                       bool reduce) {
     std::cout << "\n--- " << label << " ---\n";
 
-    auto pd = knotbuilder::parsePDCode(pdCode);
-    auto result0 = knotbuilder::buildLink(pd);
+    auto pd = diagramtriangulation::parsePDCode(pdCode);
+    auto result0 = diagramtriangulation::buildLink(pd);
 
-    knotbuilder::TriangulationWithLink result =
-        reduce ? knotbuilder::reduceVertices(result0.tri, result0.edges)
+    diagramtriangulation::TriangulationWithLink result =
+        reduce ? diagramtriangulation::reduceVertices(result0.tri, result0.edges)
               : result0;
 
     auto coned = coneOver(result.tri);
@@ -1049,7 +1049,7 @@ const char *kWhiteheadPD = "1 7 2 8 3 10 4 9 5 2 6 3 8 5 9 4 10 6 7 1";
 // size (the (2,6) case below is ~17s on its own).
 void expectLinkingNumber(const char *label, const char *pdCode, long expected,
                          bool bothDirections = false) {
-    auto result = knotbuilder::buildLink(knotbuilder::parsePDCode(pdCode));
+    auto result = diagramtriangulation::buildLink(diagramtriangulation::parsePDCode(pdCode));
     Link link(result.tri, result.edges);
 
     EXPECT_EQ(link.countComponents(), 2,
@@ -1136,8 +1136,8 @@ void test_cone_on_trefoil_rejected() {
     std::cout << "\n--- Coning the trefoil to a point: apex closure is "
                  "rejected (non-locally-flat) ---\n";
 
-    auto pd = knotbuilder::parsePDCode(kTrefoilPD);
-    auto result = knotbuilder::buildLink(pd);
+    auto pd = diagramtriangulation::parsePDCode(kTrefoilPD);
+    auto result = diagramtriangulation::buildLink(pd);
 
     auto coned = coneOver(result.tri);
 
@@ -1170,8 +1170,8 @@ void test_cone_on_unknot_accepted() {
 
     // A single-crossing unknot diagram (a Reidemeister-1 kink), reusing
     // knotbuilder's own PD-code conventions.
-    auto pd = knotbuilder::parsePDCode("1 2 2 1");
-    auto result = knotbuilder::buildLink(pd);
+    auto pd = diagramtriangulation::parsePDCode("1 2 2 1");
+    auto result = diagramtriangulation::buildLink(pd);
 
     auto coned = coneOver(result.tri);
 
@@ -1226,7 +1226,7 @@ void expectConeOnUnlinkResolvable(const char *label, const char *pdCode,
                                   size_t components) {
     std::cout << "\n--- Coning the " << label
               << ": a resolvable self-intersection at the apex ---\n";
-    auto result = knotbuilder::buildLink(knotbuilder::parsePDCode(pdCode));
+    auto result = diagramtriangulation::buildLink(diagramtriangulation::parsePDCode(pdCode));
     auto coned = coneOver(result.tri);
     Skeleton<4, 2> skeleton(coned);
 
@@ -1291,7 +1291,7 @@ void test_cone_on_unlink3_resolvable() {
 void test_cone_on_whitehead_not_resolvable() {
     std::cout << "\n--- Coning the Whitehead link: passes every prune, but "
                  "is not resolvable ---\n";
-    auto result = knotbuilder::buildLink(knotbuilder::parsePDCode(kWhiteheadPD));
+    auto result = diagramtriangulation::buildLink(diagramtriangulation::parsePDCode(kWhiteheadPD));
     auto coned = coneOver(result.tri);
     Skeleton<4, 2> skeleton(coned);
 
@@ -1315,7 +1315,7 @@ void test_cone_on_whitehead_not_resolvable() {
 void test_cone_on_hopf_still_pruned() {
     std::cout << "\n--- Coning the Hopf link: still pruned by "
                  "P_transverse ---\n";
-    auto result = knotbuilder::buildLink(knotbuilder::parsePDCode(kHopfLinkPD));
+    auto result = diagramtriangulation::buildLink(diagramtriangulation::parsePDCode(kHopfLinkPD));
     auto coned = coneOver(result.tri);
     Skeleton<4, 2> skeleton(coned);
 
@@ -1329,7 +1329,7 @@ void test_cone_on_hopf_still_pruned() {
 void test_boundary_vertex_self_intersection_not_resolvable() {
     std::cout << "\n--- Two petals at a BOUNDARY vertex are never "
                  "resolvable ---\n";
-    auto result = knotbuilder::buildLink(knotbuilder::parsePDCode(kUnlink2PD));
+    auto result = diagramtriangulation::buildLink(diagramtriangulation::parsePDCode(kUnlink2PD));
     auto coned = coneOver(result.tri);
     Skeleton<4, 2> skeleton(coned);
 
@@ -1434,7 +1434,7 @@ void test_boundary_filter_rejects_knotted_boundary_petal() {
     for (const Case &c : {Case{"R1-kinked unknot", "1 2 2 1", true},
                           Case{"trefoil", kTrefoilPD, false}}) {
         std::string l(c.label);
-        auto result = knotbuilder::buildLink(knotbuilder::parsePDCode(c.pd));
+        auto result = diagramtriangulation::buildLink(diagramtriangulation::parsePDCode(c.pd));
 
         // Built and modified in place, never moved: face pointers into it
         // are taken below, and each arc edge is recorded positionally first
@@ -1528,7 +1528,7 @@ void test_boundary_filter_rejects_knotted_boundary_petal() {
 void test_boundary_vertex_closed_unlinked_petals_not_resolvable() {
     std::cout << "\n--- Closed, unlinked petals at a BOUNDARY vertex are "
                  "still not resolvable ---\n";
-    auto result = knotbuilder::buildLink(knotbuilder::parsePDCode(kUnlink2PD));
+    auto result = diagramtriangulation::buildLink(diagramtriangulation::parsePDCode(kUnlink2PD));
 
     // Built and modified in place, never moved: face pointers into it are
     // taken below. puncture() rebuilds the skeleton but keeps every existing
@@ -1604,8 +1604,8 @@ void test_hereditariness_stress() {
     // has a genuinely closing/reopening petal at the apex, which is what
     // this stress test needs to exercise, without the cost of repeatedly
     // naming a much larger knot complement.
-    auto pd = knotbuilder::parsePDCode("1 2 2 1");
-    auto result = knotbuilder::buildLink(pd);
+    auto pd = diagramtriangulation::parsePDCode("1 2 2 1");
+    auto result = diagramtriangulation::buildLink(pd);
 
     auto coned = coneOver(result.tri);
 

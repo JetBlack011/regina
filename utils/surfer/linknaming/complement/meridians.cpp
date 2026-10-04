@@ -10,7 +10,7 @@
 #include <cstdlib>
 #include <sstream>
 
-namespace peripheral {
+namespace complement {
 
 namespace {
 
@@ -44,7 +44,7 @@ std::string nextNonEmpty(std::istringstream &in) {
             return line;
     }
     throw regina::InvalidArgument(
-        "peripheral::parseSnapPea(): file ended early");
+        "complement::parseSnapPea(): file ended early");
 }
 
 } // namespace
@@ -71,7 +71,7 @@ DrilledWithMeridians drillWithMeridians(
     const std::vector<std::vector<DirectedEdge>> &components) {
     if (!tri.isOrientable())
         throw regina::InvalidArgument(
-            "peripheral::drillWithMeridians(): triangulation is not "
+            "complement::drillWithMeridians(): triangulation is not "
             "orientable, so there is no right-handed sheet to put the "
             "meridians on");
 
@@ -103,7 +103,7 @@ DrilledWithMeridians drillWithMeridians(
     for (const auto &comp : components) {
         if (comp.empty())
             throw regina::InvalidArgument(
-                "peripheral::drillWithMeridians(): empty component");
+                "complement::drillWithMeridians(): empty component");
         std::vector<Desc> descs;
         descs.reserve(comp.size());
         for (const DirectedEdge &de : comp) {
@@ -148,7 +148,7 @@ DrilledWithMeridians drillWithMeridians(
             complement.pinchEdge(complement.tetrahedron(d.tet)->edge(localEdge));
             if (complement.size() != before + 2)
                 throw regina::InvalidArgument(
-                    "peripheral::drillWithMeridians(): pinchEdge() did not "
+                    "complement::drillWithMeridians(): pinchEdge() did not "
                     "insert exactly two tetrahedra");
             if (first) {
                 // pinchEdge() lays its annulus out relative to the edge's own
@@ -173,7 +173,7 @@ DrilledWithMeridians drillWithMeridians(
 std::string snapPeaOriented(const regina::Triangulation<3> &tri) {
     if (!tri.isOriented())
         throw regina::InvalidArgument(
-            "peripheral::snapPeaOriented(): triangulation is not oriented");
+            "complement::snapPeaOriented(): triangulation is not oriented");
 
     // Regina's writer hard-codes "unknown_orientability", which makes
     // SnapPea run its own orient() on load. That flips vertices 2 and 3 of
@@ -184,7 +184,7 @@ std::string snapPeaOriented(const regina::Triangulation<3> &tri) {
     const size_t at = text.find(unknown);
     if (at == std::string::npos)
         throw regina::InvalidArgument(
-            "peripheral::snapPeaOriented(): Regina's SnapPea export no longer "
+            "complement::snapPeaOriented(): Regina's SnapPea export no longer "
             "declares unknown_orientability; the header patch needs updating");
     text.replace(at, unknown.size(), "oriented_manifold");
     return text;
@@ -197,7 +197,7 @@ SnapPeaFile parseSnapPea(const std::string &text) {
 
     if (!std::getline(in, line) || line.rfind("%", 0) != 0)
         throw regina::InvalidArgument(
-            "peripheral::parseSnapPea(): missing '% Triangulation' header");
+            "complement::parseSnapPea(): missing '% Triangulation' header");
     std::getline(in, file.name);
     std::getline(in, file.solution);
     std::getline(in, file.orientability);
@@ -209,7 +209,7 @@ SnapPeaFile parseSnapPea(const std::string &text) {
         std::istringstream counts(nextNonEmpty(in));
         if (!(counts >> file.numOrCusps >> file.numNonOrCusps))
             throw regina::InvalidArgument(
-                "peripheral::parseSnapPea(): bad cusp counts");
+                "complement::parseSnapPea(): bad cusp counts");
     }
     const int numCusps = file.numOrCusps + file.numNonOrCusps;
     for (int i = 0; i < numCusps; ++i)
@@ -220,7 +220,7 @@ SnapPeaFile parseSnapPea(const std::string &text) {
         std::istringstream count(nextNonEmpty(in));
         if (!(count >> numTet))
             throw regina::InvalidArgument(
-                "peripheral::parseSnapPea(): bad tetrahedron count");
+                "complement::parseSnapPea(): bad tetrahedron count");
     }
 
     file.meridian = CurveField(numTet);
@@ -234,21 +234,21 @@ SnapPeaFile parseSnapPea(const std::string &text) {
             for (int f = 0; f < 4; ++f)
                 if (!(nbr >> tet.neighbour[f]))
                     throw regina::InvalidArgument(
-                        "peripheral::parseSnapPea(): bad neighbour row");
+                        "complement::parseSnapPea(): bad neighbour row");
         }
         {
             std::istringstream glu(nextNonEmpty(in));
             for (int f = 0; f < 4; ++f)
                 if (!(glu >> tet.gluing[f]))
                     throw regina::InvalidArgument(
-                        "peripheral::parseSnapPea(): bad gluing row");
+                        "complement::parseSnapPea(): bad gluing row");
         }
         {
             std::istringstream cusp(nextNonEmpty(in));
             for (int v = 0; v < 4; ++v)
                 if (!(cusp >> tet.cusp[v]))
                     throw regina::InvalidArgument(
-                        "peripheral::parseSnapPea(): bad cusp-index row");
+                        "complement::parseSnapPea(): bad cusp-index row");
         }
         // Four rows of sixteen: (meridian, longitude) x (right, left) sheets,
         // each row running over vertex then face.
@@ -260,7 +260,7 @@ SnapPeaFile parseSnapPea(const std::string &text) {
                     for (int f = 0; f < 4; ++f)
                         if (!(row >> field(t, sheet, v, f)))
                             throw regina::InvalidArgument(
-                                "peripheral::parseSnapPea(): bad curve row");
+                                "complement::parseSnapPea(): bad curve row");
             }
         tet.shape = nextNonEmpty(in);
     }
@@ -273,7 +273,7 @@ CurveField toField(const Curve &curve, size_t numTet) {
     for (const Crossing &c : curve) {
         if (c.tet >= numTet)
             throw regina::InvalidArgument(
-                "peripheral::toField(): crossing names a tetrahedron outside "
+                "complement::toField(): crossing names a tetrahedron outside "
                 "the triangulation");
         field(c.tet, 0, c.vertex, c.face) += c.sign;
     }
@@ -346,7 +346,7 @@ std::pair<long, long> slope(const SnapPeaFile &file, int cusp,
     const long s = intersectionNumber(file, cusp, file.meridian, file.longitude);
     if (s != 1 && s != -1)
         throw regina::InvalidArgument(
-            "peripheral::slope(): the file's stored meridian and longitude do "
+            "complement::slope(): the file's stored meridian and longitude do "
             "not intersect once, so they are not a peripheral basis");
     const long a = intersectionNumber(file, cusp, mu, file.longitude);
     const long b = intersectionNumber(file, cusp, mu, file.meridian);
@@ -367,7 +367,7 @@ std::pair<long, long> completeBasis(long a, long b) {
     }
     if (oldR != 1 && oldR != -1)
         throw regina::InvalidArgument(
-            "peripheral::completeBasis(): slope is not primitive, so it is "
+            "complement::completeBasis(): slope is not primitive, so it is "
             "not a meridian");
     if (oldR == -1) {
         oldX = -oldX;
@@ -404,7 +404,7 @@ DrilledWithMeridians buildComplementWithPeripheral(
             "needed per listed component");
 
     std::set<int> seen;
-    std::vector<std::vector<peripheral::DirectedEdge>> selected;
+    std::vector<std::vector<complement::DirectedEdge>> selected;
     selected.reserve(components.size());
     for (size_t i = 0; i < components.size(); ++i) {
         const int c = components[i];
@@ -418,7 +418,7 @@ DrilledWithMeridians buildComplementWithPeripheral(
                 "repeated");
 
         if (directions.empty()) {
-            std::vector<peripheral::DirectedEdge> forward;
+            std::vector<complement::DirectedEdge> forward;
             forward.reserve(link.comps_[c].edges().size());
             for (const regina::Edge<3> *e : link.comps_[c].edges())
                 forward.push_back({e, false});
@@ -432,6 +432,6 @@ DrilledWithMeridians buildComplementWithPeripheral(
         }
     }
 
-    return peripheral::drillWithMeridians(link.triangulation(), selected);
+    return complement::drillWithMeridians(link.triangulation(), selected);
 }
-} // namespace peripheral
+} // namespace complement

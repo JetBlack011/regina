@@ -20,7 +20,7 @@
  *  from PD code.
  */
 
-namespace knotbuilder {
+namespace diagramtriangulation {
 // PDCode and parsePDCode(): diagramtriangulation/pdcode.h.
 
 /**
@@ -122,6 +122,6 @@ TriangulationWithLink buildLink(PDCode pdcode);
 TriangulationWithLink
 reduceVertices(const regina::Triangulation<3> &tri,
                const std::vector<const regina::Edge<3> *> &edges);
-} // namespace knotbuilder
+} // namespace diagramtriangulation
 
 #endif // KNOTBUILDER_H

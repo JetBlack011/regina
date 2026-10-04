@@ -71,9 +71,11 @@ OutgoingReader::OutgoingReader(const std::string &incomingPD, int layers) {
     search::buildIncoming(incomingPD, layers, layers, thickened_);
     const regina::Triangulation<4> &W = thickened_.tri;
     outgoing_ = std::make_unique<OutgoingMap>(thickened_.link.tri, *thickened_.cob);
-    drawer_ = std::make_unique<knotbuilder::DiagramDrawer>(thickened_.link.tri, thickened_.pdcode.size());
+    drawer_ = std::make_unique<diagramtriangulation::DiagramDrawer>(thickened_.link.tri,
+                                                                   thickened_.pdcode.size());
     skeleton_ = std::make_unique<Skeleton<4, 2>>(W);
-    incomingCycles_ = knotbuilder::DiagramDrawer::cyclesOf(thickened_.link.edges, thickened_.link.reversed);
+    incomingCycles_ = diagramtriangulation::DiagramDrawer::cyclesOf(thickened_.link.edges,
+                                                                     thickened_.link.reversed);
     {
         // An incoming edge -> its diagram edge (the incoming map) -> its T edge ->
         // the cycle holding it.
@@ -396,7 +398,7 @@ std::optional<outgoing::OutgoingLink> parseLink(const std::string &text) {
   if (!parts[0].empty()) {
     std::istringstream curves(parts[0]);
     for (std::string c; std::getline(curves, c, ';');) {
-      knotbuilder::EdgeCycle cycle;
+      diagramtriangulation::EdgeCycle cycle;
       std::istringstream edges(c);
       for (std::string e; std::getline(edges, e, ',');) {
         if (e.size() < 2 || (e.back() != '+' && e.back() != '-')) return std::nullopt;

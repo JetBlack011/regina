@@ -13,7 +13,7 @@
 
 #include "diagramtriangulation/fromdiagram.h"
 
-namespace knotbuilder {
+namespace diagramtriangulation {
 
 namespace {
 using Wide = __int128;
@@ -165,4 +165,4 @@ std::string verifyBlockModel() {
 }
 
 
-} // namespace knotbuilder
+} // namespace diagramtriangulation

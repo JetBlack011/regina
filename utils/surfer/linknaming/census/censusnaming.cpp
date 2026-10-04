@@ -47,7 +47,7 @@ std::optional<std::string> censusLookupName(
         return std::nullopt;
 
     std::string raw = hits.front().name();
-    if (auto classical = linknames::name(raw))
+    if (auto classical = census::name(raw))
         return *classical + " (" + raw + ")";
     return raw;
 }
@@ -372,10 +372,10 @@ std::optional<std::string> localCensusLookup(const std::string &sig) {
     // censusLookupName() gets from CensusHit::name() -- format it
     // identically for byte-identical output. SnapPy-, search-
     // retriangulate-sourced rows already store a best-effort pretty name,
-    // not a raw census name, so linknames::name() would just miss on those
+    // not a raw census name, so census::name() would just miss on those
     // -- return as-is.
     if (source == "regina") {
-        if (auto classical = linknames::name(rawName))
+        if (auto classical = census::name(rawName))
             return *classical + " (" + rawName + ")";
         return rawName;
     }

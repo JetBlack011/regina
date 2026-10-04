@@ -8,7 +8,7 @@
  *  \brief knotbuilder's 14-tetrahedron crossing block, as the box
  *  [-1,1]^2 x [0,1].
  *
- *  knotbuilder::buildLink() builds its triangulation T of S^3 from a
+ *  diagramtriangulation::buildLink() builds its triangulation T of S^3 from a
  *  diagram: one Block per crossing (tetrahedra 14k..14k+13, in Block's own
  *  order: cores 0-5, then walls 0-7), glued wall to wall into S^2 x I, then
  *  both boundary spheres coned off (finiteToIdeal()). Each block is
@@ -38,7 +38,7 @@
 #include <cstdint>
 #include <string>
 
-namespace knotbuilder {
+namespace diagramtriangulation {
 
 /** An integer coordinate. The block is [-BLOCK_SCALE, BLOCK_SCALE]^2 x [0, BLOCK_SCALE]. */
 using BlockCoord = std::int64_t;
@@ -71,6 +71,6 @@ const std::array<std::array<BlockPoint, 4>, 14> &blockCoordinates();
  */
 std::string verifyBlockModel();
 
-} // namespace knotbuilder
+} // namespace diagramtriangulation
 
 #endif

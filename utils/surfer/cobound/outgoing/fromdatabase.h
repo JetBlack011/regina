@@ -137,14 +137,16 @@ class OutgoingReader {
     const search::IncomingOrientation &orientation() const { return *thickened_.orientation; }
     size_t incomingBC() const { return thickened_.incomingBC; }
     const std::vector<size_t> &incomingEdges() const { return thickened_.incomingEdges; }
-    const knotbuilder::DiagramDrawer &drawer() const { return *drawer_; }
+    const diagramtriangulation::DiagramDrawer &drawer() const { return *drawer_; }
     /** The incoming link's own components, in DiagramDrawer::cyclesOf() order. */
-    const std::vector<knotbuilder::EdgeCycle> &incomingCycles() const { return incomingCycles_; }
+    const std::vector<diagramtriangulation::EdgeCycle> &incomingCycles() const {
+        return incomingCycles_;
+    }
     /** Which of incomingCycles() the incoming edge `edgeIndex` (an index into
      *  the incoming boundary component's built triangulation) lies on.
      *  \throws std::out_of_range for an edge that is not one of L's. */
     size_t incomingComponentOf(size_t edgeIndex) const { return incomingComponentOf_.at(edgeIndex); }
-    const knotbuilder::TriangulationWithLink &built() const { return thickened_.link; }
+    const diagramtriangulation::TriangulationWithLink &built() const { return thickened_.link; }
     /** The whole incoming thickening: a search run in thickening() (a goal
      *  run's searches) sees exactly what this reader reads. */
     const search::IncomingThickening &thickened() const { return thickened_; }
@@ -182,9 +184,9 @@ class OutgoingReader {
 
     search::IncomingThickening thickened_; /**< T, the thickening, its collar and incoming map. */
     std::unique_ptr<OutgoingMap> outgoing_;
-    std::unique_ptr<knotbuilder::DiagramDrawer> drawer_;
+    std::unique_ptr<diagramtriangulation::DiagramDrawer> drawer_;
     std::unique_ptr<Skeleton<4, 2>> skeleton_;
-    std::vector<knotbuilder::EdgeCycle> incomingCycles_;
+    std::vector<diagramtriangulation::EdgeCycle> incomingCycles_;
     std::unordered_map<size_t, size_t> incomingComponentOf_; /**< see incomingComponentOf() */
     mutable double msDecode_ = 0, msIso_ = 0, msSurface_ = 0, msRead_ = 0, msBoundaryBuild_ = 0;
 

@@ -78,9 +78,9 @@ namespace {
  * and it is what catches a mistabulated pinch annulus.
  */
 bool isClosedCurve(const regina::Triangulation<3> &tri,
-                   const peripheral::Curve &curve) {
+                   const complement::Curve &curve) {
     std::map<std::tuple<size_t, int, int>, int> value;
-    for (const peripheral::Crossing &c : curve)
+    for (const complement::Crossing &c : curve)
         value[{c.tet, c.vertex, c.face}] += c.sign;
 
     std::map<std::pair<size_t, int>, int> cornerSum;
@@ -111,15 +111,15 @@ bool isClosedCurve(const regina::Triangulation<3> &tri,
 /** Every regina Vertex the curve's crossings sit at. */
 std::set<const regina::Vertex<3> *>
 verticesMet(const regina::Triangulation<3> &tri,
-            const peripheral::Curve &curve) {
+            const complement::Curve &curve) {
     std::set<const regina::Vertex<3> *> out;
-    for (const peripheral::Crossing &c : curve)
+    for (const complement::Crossing &c : curve)
         out.insert(tri.tetrahedron(c.tet)->vertex(c.vertex));
     return out;
 }
 
 /** The drilled unknot exterior used as ground truth, plus its meridian. */
-peripheral::DrilledWithMeridians groundTruth() {
+complement::DrilledWithMeridians groundTruth() {
     regina::Triangulation<3> lens = regina::Example<3>::lens(1, 0);
     std::vector<const regina::Edge<3> *> loop;
     for (const regina::Edge<3> *e : lens.edges())
@@ -127,14 +127,14 @@ peripheral::DrilledWithMeridians groundTruth() {
             loop.push_back(e);
             break;
         }
-    return peripheral::drillWithMeridians(lens, {loop});
+    return complement::drillWithMeridians(lens, {loop});
 }
 
 void testCompleteBasis() {
     std::cout << "completeBasis()\n";
     for (auto [a, b] : std::vector<std::pair<long, long>>{
              {1, -1}, {-1, 1}, {1, 0}, {0, 1}, {3, 2}, {-5, 7}, {2, -3}}) {
-        auto [c, d] = peripheral::completeBasis(a, b);
+        auto [c, d] = complement::completeBasis(a, b);
         EXPECT_EQ(a * d - b * c, 1L,
                   "det [(" + std::to_string(a) + "," + std::to_string(b) +
                       "),(" + std::to_string(c) + "," + std::to_string(d) +
@@ -145,7 +145,7 @@ void testCompleteBasis() {
 void testSnapPeaOriented() {
     std::cout << "snapPeaOriented()\n";
     auto drilled = groundTruth();
-    const std::string text = peripheral::snapPeaOriented(drilled.tri);
+    const std::string text = complement::snapPeaOriented(drilled.tri);
     EXPECT_TRUE(text.find("oriented_manifold") != std::string::npos,
                 "declares oriented_manifold");
     EXPECT_TRUE(text.find("unknown_orientability") == std::string::npos,
@@ -183,33 +183,33 @@ void testGroundTruth() {
     EXPECT_TRUE(!snappea.isNull(), "SnapPea accepts it");
     EXPECT_EQ(snappea.size(), tri.size(), "SnapPea preserved the triangulation");
 
-    peripheral::SnapPeaFile file = peripheral::parseSnapPea(snappea.snapPea());
+    complement::SnapPeaFile file = complement::parseSnapPea(snappea.snapPea());
     EXPECT_EQ(file.tets.size(), tri.size(), "parsed every tetrahedron");
     EXPECT_EQ(file.numOrCusps + file.numNonOrCusps, 1, "parsed one cusp");
 
     // SnapPea's own basis must behave like a basis under our intersection
     // pairing. This is the check that catches a wrong remaining_face table or
     // a wrong FLOW, independently of anything to do with meridians.
-    const long mm = peripheral::intersectionNumber(file, 0, file.meridian,
+    const long mm = complement::intersectionNumber(file, 0, file.meridian,
                                                    file.meridian);
-    const long ll = peripheral::intersectionNumber(file, 0, file.longitude,
+    const long ll = complement::intersectionNumber(file, 0, file.longitude,
                                                    file.longitude);
-    const long ml = peripheral::intersectionNumber(file, 0, file.meridian,
+    const long ml = complement::intersectionNumber(file, 0, file.meridian,
                                                    file.longitude);
     EXPECT_EQ(mm, 0L, "<m, m> == 0");
     EXPECT_EQ(ll, 0L, "<l, l> == 0");
     EXPECT_TRUE(ml == 1 || ml == -1, "<m, l> == +-1");
     // std::pair is not streamable, and EXPECT_EQ prints what it compares, so
     // compare the coefficients rather than the pairs.
-    auto [mA, mB] = peripheral::slope(file, 0, file.meridian);
+    auto [mA, mB] = complement::slope(file, 0, file.meridian);
     EXPECT_EQ(mA, 1L, "slope of SnapPea's m has a == 1");
     EXPECT_EQ(mB, 0L, "slope of SnapPea's m has b == 0");
-    auto [lA, lB] = peripheral::slope(file, 0, file.longitude);
+    auto [lA, lB] = complement::slope(file, 0, file.longitude);
     EXPECT_EQ(lA, 0L, "slope of SnapPea's l has a == 0");
     EXPECT_EQ(lB, 1L, "slope of SnapPea's l has b == 1");
 
-    auto [ourA, ourB] = peripheral::slope(
-        file, 0, peripheral::toField(drilled.meridians[0], file.tets.size()));
+    auto [ourA, ourB] = complement::slope(
+        file, 0, complement::toField(drilled.meridians[0], file.tets.size()));
     const long a = ourA, b = ourB;
     EXPECT_TRUE((a == 1 && b == -1) || (a == -1 && b == 1),
                 "our meridian is (1, -1) up to sign [got (" +
@@ -220,15 +220,15 @@ void testGroundTruth() {
 void testDiagram(const std::string &label, const std::string &pd,
                  size_t expectedComponents) {
     std::cout << label << "\n";
-    knotbuilder::TriangulationWithLink built =
-        knotbuilder::buildLink(knotbuilder::parsePDCode(pd));
+    diagramtriangulation::TriangulationWithLink built =
+        diagramtriangulation::buildLink(diagramtriangulation::parsePDCode(pd));
     Link link(built.tri, built.edges);
     EXPECT_EQ(size_t(link.countComponents()), expectedComponents,
               "component count");
 
     const size_t before = built.tri.size();
-    peripheral::DrilledWithMeridians drilled =
-        peripheral::buildComplementWithPeripheral(link);
+    complement::DrilledWithMeridians drilled =
+        complement::buildComplementWithPeripheral(link);
 
     EXPECT_EQ(drilled.tri.size(), before + 2 * built.edges.size(),
               "two tetrahedra inserted per drilled edge");
@@ -246,7 +246,7 @@ void testDiagram(const std::string &label, const std::string &pd,
 
     std::set<const regina::Vertex<3> *> cusps;
     for (size_t i = 0; i < drilled.meridians.size(); ++i) {
-        const peripheral::Curve &mu = drilled.meridians[i];
+        const complement::Curve &mu = drilled.meridians[i];
         EXPECT_TRUE(isClosedCurve(drilled.tri, mu),
                     "meridian " + std::to_string(i) + " is a closed curve");
         auto met = verticesMet(drilled.tri, mu);
@@ -275,13 +275,13 @@ void testDiagram(const std::string &label, const std::string &pd,
  */
 void testDirectionNegatesMeridian() {
     std::cout << "reversing a component negates its meridian\n";
-    knotbuilder::TriangulationWithLink built = knotbuilder::buildLink(
-        knotbuilder::parsePDCode("PD[X[4; 1; 3; 2]; X[2; 3; 1; 4]]"));
+    diagramtriangulation::TriangulationWithLink built = diagramtriangulation::buildLink(
+        diagramtriangulation::parsePDCode("PD[X[4; 1; 3; 2]; X[2; 3; 1; 4]]"));
     Link link(built.tri, built.edges);
 
-    std::vector<std::vector<peripheral::DirectedEdge>> forward;
+    std::vector<std::vector<complement::DirectedEdge>> forward;
     for (int c = 0; c < link.countComponents(); ++c) {
-        std::vector<peripheral::DirectedEdge> edges;
+        std::vector<complement::DirectedEdge> edges;
         for (const regina::Edge<3> *e : link.comps_[c].edges())
             edges.push_back({e, false});
         forward.push_back(std::move(edges));
@@ -290,10 +290,10 @@ void testDirectionNegatesMeridian() {
     for (auto &e : flipFirst[0])
         e.reversed = true;
 
-    peripheral::DrilledWithMeridians a =
-        peripheral::drillWithMeridians(built.tri, forward);
-    peripheral::DrilledWithMeridians b =
-        peripheral::drillWithMeridians(built.tri, flipFirst);
+    complement::DrilledWithMeridians a =
+        complement::drillWithMeridians(built.tri, forward);
+    complement::DrilledWithMeridians b =
+        complement::drillWithMeridians(built.tri, flipFirst);
 
     EXPECT_EQ(a.meridians.size(), b.meridians.size(), "same component count");
     // Same drilling order either way, so the triangulations agree and the
@@ -302,8 +302,8 @@ void testDirectionNegatesMeridian() {
 
     bool negated = a.meridians[0].size() == b.meridians[0].size();
     for (size_t i = 0; negated && i < a.meridians[0].size(); ++i) {
-        const peripheral::Crossing &x = a.meridians[0][i];
-        const peripheral::Crossing &y = b.meridians[0][i];
+        const complement::Crossing &x = a.meridians[0][i];
+        const complement::Crossing &y = b.meridians[0][i];
         negated = x.tet == y.tet && x.vertex == y.vertex &&
                   x.face == y.face && x.sign == -y.sign;
     }
@@ -311,8 +311,8 @@ void testDirectionNegatesMeridian() {
 
     bool untouched = a.meridians[1].size() == b.meridians[1].size();
     for (size_t i = 0; untouched && i < a.meridians[1].size(); ++i) {
-        const peripheral::Crossing &x = a.meridians[1][i];
-        const peripheral::Crossing &y = b.meridians[1][i];
+        const complement::Crossing &x = a.meridians[1][i];
+        const complement::Crossing &y = b.meridians[1][i];
         untouched = x.tet == y.tet && x.vertex == y.vertex &&
                     x.face == y.face && x.sign == y.sign;
     }
@@ -328,15 +328,15 @@ void testDirectionNegatesMeridian() {
  */
 void testUndirectedMatchesForward() {
     std::cout << "undirected drilling == every edge forwards\n";
-    knotbuilder::TriangulationWithLink built = knotbuilder::buildLink(
-        knotbuilder::parsePDCode("[[1;5;2;4];[3;1;4;6];[5;3;6;2]]"));
+    diagramtriangulation::TriangulationWithLink built = diagramtriangulation::buildLink(
+        diagramtriangulation::parsePDCode("[[1;5;2;4];[3;1;4;6];[5;3;6;2]]"));
     Link link(built.tri, built.edges);
 
     std::vector<std::vector<const regina::Edge<3> *>> plain;
-    std::vector<std::vector<peripheral::DirectedEdge>> forward;
+    std::vector<std::vector<complement::DirectedEdge>> forward;
     for (int c = 0; c < link.countComponents(); ++c) {
         std::vector<const regina::Edge<3> *> bare;
-        std::vector<peripheral::DirectedEdge> directed;
+        std::vector<complement::DirectedEdge> directed;
         for (const regina::Edge<3> *e : link.comps_[c].edges()) {
             bare.push_back(e);
             directed.push_back({e, false});
@@ -345,10 +345,10 @@ void testUndirectedMatchesForward() {
         forward.push_back(std::move(directed));
     }
 
-    peripheral::DrilledWithMeridians a =
-        peripheral::drillWithMeridians(built.tri, plain);
-    peripheral::DrilledWithMeridians b =
-        peripheral::drillWithMeridians(built.tri, forward);
+    complement::DrilledWithMeridians a =
+        complement::drillWithMeridians(built.tri, plain);
+    complement::DrilledWithMeridians b =
+        complement::drillWithMeridians(built.tri, forward);
     EXPECT_EQ(a.tri.isoSig(), b.tri.isoSig(), "same drilled triangulation");
     bool same = a.meridians.size() == b.meridians.size();
     for (size_t c = 0; same && c < a.meridians.size(); ++c) {

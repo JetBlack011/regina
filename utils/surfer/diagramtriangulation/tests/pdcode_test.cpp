@@ -14,7 +14,7 @@
 
 #include "diagramtriangulation/pdcode.h"
 
-using namespace knotbuilder;
+using namespace diagramtriangulation;
 
 static int passed = 0, failed_count = 0;
 

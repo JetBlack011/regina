@@ -54,7 +54,7 @@
 //  pair is carried onto that thickening by an isomorphism sending its
 //  incoming curve onto L x {0}, and from there on everything is
 //  what the search itself would have had: outgoing::orientedOutgoingLink()
-//  and knotbuilder::DiagramDrawer. The isomorphism is the only search in
+//  and diagramtriangulation::DiagramDrawer. The isomorphism is the only search in
 //  the pipeline, and it is pinned by L x {0}, so the outgoing side is read
 //  through the thickening's own product structure -- never mirrored by an
 //  automorphism of T.
@@ -96,7 +96,7 @@
 
 namespace {
 
-std::string matrix(const knotbuilder::Diagram &d) {
+std::string matrix(const diagramtriangulation::Diagram &d) {
     std::vector<std::vector<long>> lk(d.components, std::vector<long>(d.components, 0));
     for (size_t i = 0; i < d.components; ++i)
         for (size_t j = 0; j < d.components; ++j)
@@ -112,7 +112,7 @@ std::string list(const std::vector<T> &v) {
 // Signed Gauss data (--gauss): the crossing signs, then per component the
 // crossings it passes in order (+(k+1) over crossing k, -(k+1) under), which
 // is the whole oriented diagram and names every curve by its index.
-std::string gaussFields(const knotbuilder::Diagram &d) {
+std::string gaussFields(const diagramtriangulation::Diagram &d) {
     std::ostringstream o;
     o << " signs=[";
     for (size_t k = 0; k < d.crossings.size(); ++k) o << (k ? "," : "") << d.crossings[k].sign;
@@ -123,7 +123,7 @@ std::string gaussFields(const knotbuilder::Diagram &d) {
 
 // Each outgoing curve's edges of T, sorted (--gauss): what identifies a curve
 // across two reads that list the curves in different orders.
-std::string curveEdges(const std::vector<knotbuilder::EdgeCycle> &curves) {
+std::string curveEdges(const std::vector<diagramtriangulation::EdgeCycle> &curves) {
     std::ostringstream o;
     o << " edges=[";
     for (size_t c = 0; c < curves.size(); ++c) {
@@ -168,7 +168,7 @@ int commands::draw(const std::vector<std::string> &args) {
         return 2;
     }
     const outgoing::OutgoingReader redraw(positional.front(), layers);
-    const knotbuilder::TriangulationWithLink &built = redraw.built();
+    const diagramtriangulation::TriangulationWithLink &built = redraw.built();
 
     // The incoming link's components, in cyclesOf() order, and each of its edges' component.
     const auto &incomingCycles = redraw.incomingCycles();
@@ -180,7 +180,7 @@ int commands::draw(const std::vector<std::string> &args) {
         for (size_t i = 0; i < built.edges.size(); ++i)
             componentOfIncomingEdge[i] = compOfT.at(built.edges[i]->index());
     }
-    const knotbuilder::Diagram incomingDiagram = redraw.drawer().draw(incomingCycles);
+    const diagramtriangulation::Diagram incomingDiagram = redraw.drawer().draw(incomingCycles);
     std::cout << kFrozenDrawRowLine << incomingCycles.size() << " lk=" << matrix(incomingDiagram)
               << (gauss ? gaussFields(incomingDiagram) + " build=" + redraw.buildChecksum()
                         : std::string())
@@ -211,7 +211,7 @@ int commands::draw(const std::vector<std::string> &args) {
                 std::cout << "W " << id << " FAILED incoming orientation is inconsistent\n";
                 return;
             }
-            knotbuilder::Diagram d = redraw.drawer().draw(link->curves);
+            diagramtriangulation::Diagram d = redraw.drawer().draw(link->curves);
 
             // Which incoming components each surface component meets.
             std::map<size_t, std::vector<size_t>> incoming;
@@ -234,7 +234,8 @@ int commands::draw(const std::vector<std::string> &args) {
             inc << '}';
             std::cout << "W " << id << " ok components=" << d.components
                       << " crossingless=" << list(d.crossingless) << " pd="
-                      << knotbuilder::formatPDCode(d.pd, knotbuilder::PDSpelling::commas)
+                      << diagramtriangulation::formatPDCode(d.pd,
+                                                        diagramtriangulation::PDSpelling::commas)
                       << " lk=" << matrix(d) << " surface=" << list(link->surfaceComponent)
                       << " incoming=" << inc.str()
                       << (gauss ? gaussFields(d) + curveEdges(link->curves) + " genus=" +

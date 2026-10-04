@@ -67,7 +67,7 @@ const char *FIXTURE_PATH = "census_test_fixture.sqlite";
 
 // Builds a tiny scratch census at FIXTURE_PATH: one source='regina' row
 // whose raw name (with a " : #N" suffix, matching CensusHit::name()'s real
-// format) has a known classical translation in linknames.h, one whose raw
+// format) has a known classical translation in censusnames.h, one whose raw
 // name doesn't, and one source='snappy' row with an already-pretty name
 // (as identify_boundaries.py's _pick_best_name() would produce).
 void buildFixture(const char *path = FIXTURE_PATH) {
@@ -81,13 +81,13 @@ void buildFixture(const char *path = FIXTURE_PATH) {
         ");"
         "INSERT INTO census VALUES"
         "  ('fake-sig-regina-linkname', 'L104001 : #1', 'regina'),"
-        "  ('fake-sig-regina-no-linkname', 'not-in-linknames-table', 'regina'),"
+        "  ('fake-sig-regina-no-linkname', 'not-in-censusnames-table', 'regina'),"
         "  ('fake-sig-snappy', 'K12n124', 'snappy');",
         nullptr, nullptr, nullptr);
     sqlite3_close(db);
 }
 
-void test_regina_hit_formats_via_linknames() {
+void test_regina_hit_formats_via_censusnames() {
     buildFixture();
     census::setCensusPath(FIXTURE_PATH);
 
@@ -99,13 +99,13 @@ void test_regina_hit_formats_via_linknames() {
         "Census::lookup() hit");
 }
 
-void test_regina_hit_raw_when_no_linknames_entry() {
+void test_regina_hit_raw_when_no_censusnames_entry() {
     buildFixture();
     census::setCensusPath(FIXTURE_PATH);
 
     EXPECT_EQ(
         census::localCensusLookup("fake-sig-regina-no-linkname").value_or("<MISS>"),
-        std::string("not-in-linknames-table"),
+        std::string("not-in-censusnames-table"),
         "a source='regina' hit with no censusnames.h entry returns the "
         "raw census name unchanged");
 }
@@ -117,7 +117,7 @@ void test_snappy_hit_returns_verbatim() {
     EXPECT_EQ(census::localCensusLookup("fake-sig-snappy").value_or("<MISS>"),
               std::string("K12n124"),
               "a source='snappy' hit is returned exactly as stored, never "
-              "passed through linknames::name() (its name isn't a raw "
+              "passed through census::name() (its name isn't a raw "
               "census name, so that would only ever miss)");
 }
 
@@ -344,10 +344,10 @@ void run(const std::string &name, void (*fn)()) {
 }
 
 int main() {
-    run("regina_hit_formats_via_linknames",
-        test_regina_hit_formats_via_linknames);
-    run("regina_hit_raw_when_no_linknames_entry",
-        test_regina_hit_raw_when_no_linknames_entry);
+    run("regina_hit_formats_via_censusnames",
+        test_regina_hit_formats_via_censusnames);
+    run("regina_hit_raw_when_no_censusnames_entry",
+        test_regina_hit_raw_when_no_censusnames_entry);
     run("snappy_hit_returns_verbatim", test_snappy_hit_returns_verbatim);
     run("miss_returns_nullopt", test_miss_returns_nullopt);
     run("missing_file_falls_through_cleanly",

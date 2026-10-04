@@ -109,7 +109,7 @@ private:
 };
 
 /// The GaussDiagram of a drawn diagram, `origin` = drawn component index.
-linknaming::GaussDiagram gaussOf(const knotbuilder::Diagram &d);
+linknaming::GaussDiagram gaussOf(const diagramtriangulation::Diagram &d);
 
 /// A PD code for a connected diagram, as a table row's `PD Notation` (`;`-separated,
 /// labels from 1). Throws if the PD would not fix every orientation

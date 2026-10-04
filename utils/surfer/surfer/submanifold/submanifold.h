@@ -390,7 +390,7 @@ extern template class EmbeddedSubmanifold<4, 2>;
  * One directed boundary edge, as induced by a surface's own orientation
  * (see KnottedSurface::orientedBoundaryLinks()): `edge` runs
  * `vertex(1)` -> `vertex(0)` iff `reversed` -- the same convention as
- * knotbuilder::TriangulationWithLink::reversed, so a found surface's own
+ * diagramtriangulation::TriangulationWithLink::reversed, so a found surface's own
  * induced direction and the incoming link's PD-tagged direction can be compared
  * directly.
  */

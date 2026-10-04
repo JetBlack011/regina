@@ -127,8 +127,8 @@ void test_link_components_independent_of_input_order() {
     const size_t expectedComponents[] = {2, 2, 3, 1};
     std::mt19937 rng(20261001);
     for (size_t p = 0; p < std::size(pds); ++p) {
-        const knotbuilder::TriangulationWithLink built =
-            knotbuilder::buildLink(knotbuilder::parsePDCode(pds[p]));
+        const diagramtriangulation::TriangulationWithLink built =
+            diagramtriangulation::buildLink(diagramtriangulation::parsePDCode(pds[p]));
         std::vector<const regina::Edge<3> *> edges = built.edges;
         std::ranges::sort(edges, {}, [](const regina::Edge<3> *e) { return e->index(); });
 

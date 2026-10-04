@@ -733,7 +733,7 @@ SearchResult Searcher::run(const search::IncomingThickening &thickened,
   // infinitely many links (Rolfsen twisting), so writing `isoSig -> L6a3`
   // into a shared cache would assert, permanently and for every future
   // outgoing link landing on that isoSig, a naming the complement cannot
-  // support -- exactly the claim linknames.h forbids adding "from a
+  // support -- exactly the claim censusnames.h forbids adding "from a
   // complement match alone". For a knot the same entry is sound by
   // Gordon-Luecke.
   if (request.censusName && thickened.componentCount == 1 &&

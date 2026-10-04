@@ -199,7 +199,7 @@ class LinkNamer {
 
     /**
      * \param drawn an oriented, planar diagram of the outgoing link, component i
-     *        the i-th outgoing curve (knotbuilder::Diagram::link()).
+     *        the i-th outgoing curve (diagramtriangulation::Diagram::link()).
      */
     LinkName name(const regina::Link &drawn) const;
 
@@ -284,7 +284,7 @@ struct NamingStats {
         learnedLinks{0}, fallbacks{0}, learned{0}, microsDiagram{0},
         microsFallback{0};
     std::atomic<long long> nonPlanar{0};
-    /**< Drawings the drawer refused as not planar (knotbuilder::NonPlanar):
+    /**< Drawings the drawer refused as not planar (diagramtriangulation::NonPlanar):
          each is a drawer defect, named by the complement route instead. */
     std::atomic<long long> orientedNamed{0}, orientedCacheHits{0}, orientedFailed{0};
     /**< orientedName(): names computed, answered from the cache, and

@@ -725,8 +725,8 @@ int main(int argc, char *argv[]) {
     BoundaryCondition cond = parseCond(argv[4]);
     unsigned threads = static_cast<unsigned>(std::stoi(argv[5]));
 
-    knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pdcodeStr);
-    auto [t2, edges0, reversed0] = knotbuilder::buildLink(pdcode);
+    diagramtriangulation::PDCode pdcode = diagramtriangulation::parsePDCode(pdcodeStr);
+    auto [t2, edges0, reversed0] = diagramtriangulation::buildLink(pdcode);
 
     regina::Triangulation<4> tri = pipelineAmbient(t2, layers);
 
@@ -755,8 +755,8 @@ int main(int argc, char *argv[]) {
     BoundaryCondition cond = parseCond(argv[4]);
     long long reportEvery = std::stoll(argv[5]);
 
-    knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pdcodeStr);
-    auto [t2, edges0, reversed0] = knotbuilder::buildLink(pdcode);
+    diagramtriangulation::PDCode pdcode = diagramtriangulation::parsePDCode(pdcodeStr);
+    auto [t2, edges0, reversed0] = diagramtriangulation::buildLink(pdcode);
 
     regina::Triangulation<4> tri = pipelineAmbient(t2, layers);
 
@@ -773,8 +773,8 @@ int main(int argc, char *argv[]) {
     BoundaryCondition cond = parseCond(argv[4]);
     long long reportEvery = std::stoll(argv[5]);
 
-    knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pdcodeStr);
-    auto [t2, edges0, reversed0] = knotbuilder::buildLink(pdcode);
+    diagramtriangulation::PDCode pdcode = diagramtriangulation::parsePDCode(pdcodeStr);
+    auto [t2, edges0, reversed0] = diagramtriangulation::buildLink(pdcode);
 
     regina::Triangulation<4> tri = pipelineAmbient(t2, layers);
 
@@ -813,8 +813,8 @@ int main(int argc, char *argv[]) {
       int layers = std::stoi(argv[4]);
       long long budget = std::stoll(argv[5]);
 
-      knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pdcodeStr);
-      auto [t2, edges0, reversed0] = knotbuilder::buildLink(pdcode);
+      diagramtriangulation::PDCode pdcode = diagramtriangulation::parsePDCode(pdcodeStr);
+      auto [t2, edges0, reversed0] = diagramtriangulation::buildLink(pdcode);
 
       regina::Triangulation<4> tri = pipelineAmbient(t2, layers);
 

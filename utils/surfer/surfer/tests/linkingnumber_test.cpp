@@ -103,11 +103,11 @@ long diagramLinking(const std::string &pd) {
 
 // Both components of the drawn link, or nothing unless there are exactly 2.
 struct Drawn {
-    knotbuilder::TriangulationWithLink built;
+    diagramtriangulation::TriangulationWithLink built;
     std::vector<const regina::Edge<3> *> a, b;
 };
-std::optional<Drawn> draw(const knotbuilder::PDCode &pd) {
-    Drawn d{knotbuilder::buildLink(pd), {}, {}};
+std::optional<Drawn> draw(const diagramtriangulation::PDCode &pd) {
+    Drawn d{diagramtriangulation::buildLink(pd), {}, {}};
     Link link(d.built.tri, d.built.edges);
     if (link.countComponents() != 2)
         return std::nullopt;
@@ -126,7 +126,7 @@ bool fullComparison = false;
 bool checkDiagram(const std::string &name, const std::string &pdString,
                   std::optional<long> tabulated, bool verbose) {
     const long expected = diagramLinking(pdString);
-    const knotbuilder::PDCode pd = knotbuilder::parsePDCode(pdString);
+    const diagramtriangulation::PDCode pd = diagramtriangulation::parsePDCode(pdString);
     if (tabulated)
         EXPECT_EQ(expected, *tabulated,
                   name + ": Regina's diagram linking number is the tabulated one");
@@ -245,7 +245,7 @@ void test_random_against_old_route() {
     const int trials = fullComparison ? 12 : 8;
     for (size_t k = 0; k < cases; ++k) {
         const Case &c = CASES[k];
-        auto d = draw(knotbuilder::parsePDCode(c.pd));
+        auto d = draw(diagramtriangulation::parsePDCode(c.pd));
         if (!d)
             continue;
         const regina::Triangulation<3> &tri = d->built.tri;
@@ -293,7 +293,7 @@ void test_rerouted_components() {
     std::mt19937 rng(9281);
     int compared = 0;
     for (const Case &c : CASES) {
-        auto d = draw(knotbuilder::parsePDCode(c.pd));
+        auto d = draw(diagramtriangulation::parsePDCode(c.pd));
         if (!d)
             continue;
         const regina::Triangulation<3> &tri = d->built.tri;
@@ -358,7 +358,7 @@ void test_rerouted_components() {
 }
 
 void test_refuses_non_cycles() {
-    auto d = draw(knotbuilder::parsePDCode(CASES[1].pd));
+    auto d = draw(diagramtriangulation::parsePDCode(CASES[1].pd));
     linkingnumber::Complex cx(d->built.tri);
     std::vector<const regina::Edge<3> *> open(d->a.begin(), d->a.end() - 1);
     EXPECT_EQ(linkingnumber::linkingNumber(cx, open, d->b).has_value(), false,

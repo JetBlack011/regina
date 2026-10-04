@@ -29,7 +29,7 @@
 //  The outgoing link is recovered exactly as the search saw it
 //  (outgoing::OutgoingReader: the pair carried onto the incoming
 //  diagram's own thickening by an isomorphism pinned by L x {0}), oriented as a cobordism
-//  from the oriented incoming link, drawn (knotbuilder::DiagramDrawer, which
+//  from the oriented incoming link, drawn (diagramtriangulation::DiagramDrawer, which
 //  refuses any non-planar drawing) and named by linknaming::LinkNamer.
 //  <exact> is 1 when the name is an identity, <pinned> when every piece's
 //  oriented variant is proved; <pieces> lists "display/by/crossings" per
@@ -184,7 +184,7 @@ int commands::name(const std::vector<std::string> &args) {
                 continue;
             }
             const auto td = std::chrono::steady_clock::now();
-            const knotbuilder::Diagram d = redraw->drawer().draw(link->curves);
+            const diagramtriangulation::Diagram d = redraw->drawer().draw(link->curves);
             const regina::Link drawn = d.link();
             const std::string key = drawn.sig<2>(false, false, true);
             msDraw += ms(td);

@@ -62,7 +62,7 @@
  *  round trip.
  */
 
-namespace peripheral {
+namespace complement {
 
 /**
  * One signed crossing of a curve with one side of one triangle of a cusp
@@ -135,7 +135,7 @@ struct DrilledWithMeridians {
  * that component runs along it.
  *
  * \a reversed means the traversal runs `edge->vertex(1)` -> `edge->vertex(0)`,
- * the same convention as knotbuilder::TriangulationWithLink::reversed and
+ * the same convention as diagramtriangulation::TriangulationWithLink::reversed and
  * OrientedEdge in embeddedsubmanifold.h, so a PD-tagged diagram edge or a
  * surface's own induced boundary direction can be handed here unchanged.
  */
@@ -369,6 +369,6 @@ DrilledWithMeridians buildComplementWithPeripheral(
     const Link &link, const std::vector<int> &components,
     const std::vector<std::vector<DirectedEdge>> &directions = {});
 
-} // namespace peripheral
+} // namespace complement
 
 #endif // PERIPHERAL_H

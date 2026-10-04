@@ -16,7 +16,7 @@
 #include <set>
 #include <unordered_map>
 
-namespace knotbuilder {
+namespace diagramtriangulation {
 
 namespace {
 
@@ -666,4 +666,4 @@ DiagramDrawer::cyclesOf(const std::vector<const regina::Edge<3> *> &edges,
     return out;
 }
 
-} // namespace knotbuilder
+} // namespace diagramtriangulation

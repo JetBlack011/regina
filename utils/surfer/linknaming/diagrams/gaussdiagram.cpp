@@ -103,7 +103,7 @@ std::optional<std::pair<GaussDiagram, GaussDiagram>> visibleSum(const GaussDiagr
     // Half-edge (crossing, position): positions run counterclockwise from the
     // incoming under-strand -- [under-in, over-in, under-out, over-out] at a
     // left-handed (-1) crossing, [under-in, over-out, under-out, over-in] at
-    // a right-handed one (knotbuilder::DiagramDrawer's and the KnotTheory
+    // a right-handed one (diagramtriangulation::DiagramDrawer's and the KnotTheory
     // convention).
     auto posIn = [&](size_t k, bool over) { return over ? (d.signs[k] < 0 ? 1 : 3) : 0; };
     auto posOut = [&](size_t k, bool over) { return over ? (d.signs[k] < 0 ? 3 : 1) : 2; };

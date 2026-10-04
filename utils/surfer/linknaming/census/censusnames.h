@@ -2,14 +2,14 @@
 //  censusnames.h
 //
 //  GENERATED FILE -- do not edit by hand.
-//  Produced by tests/gen_knot_census_names.cpp + tests/gen_knot_names_header.py
+//  Produced by linknaming/gen_census_names.cpp + linknaming/gen_census_names_header.py
 //  from tests/pd_codes_up_to_13_crossings.csv (KnotInfo, classical Rolfsen
 //  names) and links_4d_smooth_slice_genus_11_crossings_pd_codes.csv
 //  (Thistlethwaite Link Table names), cross-validated against SnapPy.
 //
 
-#ifndef LINKNAMES_H
-#define LINKNAMES_H
+#ifndef CENSUSNAMES_H
+#define CENSUSNAMES_H
 
 #include <optional>
 #include <string>
@@ -27,7 +27,7 @@
  *  looking both up through the same name().
  */
 
-namespace linknames {
+namespace census {
 
 /**
  * Base census manifold name (the " : #N" suffix stripped) -> classical
@@ -345,6 +345,6 @@ inline std::optional<std::string> name(const std::string &censusName) {
     return it->second;
 }
 
-} // namespace linknames
+} // namespace census
 
-#endif // LINKNAMES_H
+#endif // CENSUSNAMES_H

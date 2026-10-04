@@ -213,7 +213,7 @@ using OutgoingCurve = std::vector<OutgoingEdge>;
 class OutgoingMap {
   public:
     /**
-     * \param knotT knotbuilder::buildLink()'s triangulation, unmodified.
+     * \param knotT diagramtriangulation::buildLink()'s triangulation, unmodified.
      * \param cob built from `knotT` (CobordismBuilder takes an ordered copy,
      *        relabelling vertices within tetrahedra), after its last
      *        thicken().
@@ -229,7 +229,7 @@ class OutgoingMap {
      * component's built triangulation, as orientedBoundaryLinks() gives
      * them -- as a directed edge cycle of `knotT`.
      */
-    knotbuilder::EdgeCycle carry(const OutgoingCurve &curve) const;
+    diagramtriangulation::EdgeCycle carry(const OutgoingCurve &curve) const;
 
     /**
      * A closed curve given as its edges in any order (a boundary link's
@@ -239,7 +239,8 @@ class OutgoingMap {
      * \exception regina::InvalidArgument the edges do not form one closed
      * curve.
      */
-    knotbuilder::EdgeCycle carryCycle(const std::vector<const regina::Edge<3> *> &edges) const;
+    diagramtriangulation::EdgeCycle
+    carryCycle(const std::vector<const regina::Edge<3> *> &edges) const;
 
   private:
     size_t bc_ = 0;
@@ -260,8 +261,8 @@ struct ThickenedLink {
     ThickenedLink(const ThickenedLink &) = delete;
     ThickenedLink &operator=(const ThickenedLink &) = delete;
 
-    knotbuilder::PDCode pdcode;
-    knotbuilder::TriangulationWithLink link; /**< T, and L's edges in it. */
+    diagramtriangulation::PDCode pdcode;
+    diagramtriangulation::TriangulationWithLink link; /**< T, and L's edges in it. */
     std::optional<CobordismBuilder<3>> cob;
     regina::Triangulation<4> tri;  /**< The search's ambient. */
     std::vector<int> seedFaces;    /**< The collar, in index order; empty without one. */

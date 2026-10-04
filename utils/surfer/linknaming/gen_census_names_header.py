@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
-Validates ../knot_census_names.csv (produced by gen_knot_census_names.cpp)
-and, if present, ../link_census_names.csv (produced by the same tool's
---links mode) against SnapPy, then emits ../linknames.h: a census-name ->
+Validates knot_census_names.csv (produced by gen_census_names.cpp, the
+gen_knot_census_names target) and, if present, link_census_names.csv (its
+--links mode), both beside this script, against SnapPy, then emits
+census/censusnames.h: a census-name ->
 classical-name lookup table (Rolfsen knot names + Thistlethwaite link
 names) for census/censusnaming.cpp.
 
 Usage (run with the venv that has SnapPy installed):
-    utils/surfer/.venv/bin/python3 gen_knot_names_header.py
+    utils/surfer/.venv/bin/python3 gen_census_names_header.py
 
 The table is keyed by *base* manifold name (e.g. "m004"), not the full raw
 hit string Census::lookup() returns (e.g. "m004 : #1"). The " : #N" suffix
@@ -183,101 +184,95 @@ def main():
     return 1 if (mismatches or ambiguous) else 0
 
 
-def write_header(table):
-    lines = []
-    lines.append("//")
-    lines.append("//  linknames.h")
-    lines.append("//")
-    lines.append("//  GENERATED FILE -- do not edit by hand.")
-    lines.append("//  Produced by tests/gen_knot_census_names.cpp + "
-                  "tests/gen_knot_names_header.py")
-    lines.append("//  from tests/pd_codes_up_to_13_crossings.csv (KnotInfo, "
-                  "classical Rolfsen")
-    lines.append("//  names) and "
-                  "links_4d_smooth_slice_genus_11_crossings_pd_codes.csv")
-    lines.append("//  (Thistlethwaite Link Table names), cross-validated "
-                  "against SnapPy.")
-    lines.append("//")
-    lines.append("")
-    lines.append("#ifndef LINKNAMES_H")
-    lines.append("#define LINKNAMES_H")
-    lines.append("")
-    lines.append("#include <optional>")
-    lines.append("#include <string>")
-    lines.append("#include <unordered_map>")
-    lines.append("")
-    lines.append("#include \"linknaming/names.h\"")
-    lines.append("")
-    lines.append("/*! \\file utils/surfer/linknaming/census/censusnames.h")
-    lines.append(" *  \\brief Translates Regina census hit names (e.g. \"m004 : "
-                  "#1\", \"L104001\")")
-    lines.append(" *  into classical names: Rolfsen knot table names (e.g. "
-                  "\"4_1\") for knots up")
-    lines.append(" *  to 10 crossings -- the largest crossing number "
-                  "Rolfsen's table covers --")
-    lines.append(" *  and Thistlethwaite Link Table names (e.g. \"L6a1\") "
-                  "for links. One shared")
-    lines.append(" *  table/namespace rather than a separate one per "
-                  "table: knot and link")
-    lines.append(" *  census-hit names are disjoint in practice, so "
-                  "there's no ambiguity in")
-    lines.append(" *  looking both up through the same name().")
-    lines.append(" */")
-    lines.append("")
-    lines.append("namespace linknames {")
-    lines.append("")
-    lines.append("/**")
-    lines.append(" * Base census manifold name (the \" : #N\" suffix stripped) "
-                  "-> classical")
-    lines.append(" * name (a Rolfsen knot name or a Thistlethwaite link name). "
-                  "Keyed by base")
-    lines.append(" * name, not the full raw hit string: entries sharing a "
-                  "base name in")
-    lines.append(" * Regina's cusped hyperbolic census are different ideal "
-                  "triangulations of")
-    lines.append(" * the *same* manifold (verified by identical volume "
-                  "across every such")
-    lines.append(" * group), not different manifolds, so matching on the "
-                  "base name is what")
-    lines.append(" * makes this table robust to which specific "
-                  "triangulation a caller's")
-    lines.append(" * simplify() happens to land on.")
-    lines.append(" */")
-    lines.append("inline const std::unordered_map<std::string, std::string> "
-                  "table = {")
-    for census_name in sorted(table):
-        classical = table[census_name]
-        lines.append(f'    {{"{escape(census_name)}", "{escape(classical)}"}},')
-    lines.append("};")
-    lines.append("")
-    lines.append("/**")
-    lines.append(" * Returns the classical name (a Rolfsen knot name like "
-                  "\"4_1\" or a")
-    lines.append(" * Thistlethwaite link name like \"L6a1\") corresponding "
-                  "to a raw Regina")
-    lines.append(" * census hit name (e.g. \"m004 : #1\" or \"L104001\"), or "
-                  "nullopt if unknown.")
-    lines.append(" * Any \" : #N\" suffix is stripped before looking up in "
-                  "table (see its")
-    lines.append(" * comment above), so callers can pass CensusHit::name() "
-                  "unmodified.")
-    lines.append(" */")
-    lines.append("inline std::optional<std::string> "
-                  "name(const std::string &censusName) {")
-    lines.append("    std::string base = "
-                  "cobordismgraph::stripCensusSuffix(censusName);")
-    lines.append("    auto it = table.find(base);")
-    lines.append("    if (it == table.end())")
-    lines.append("        return std::nullopt;")
-    lines.append("    return it->second;")
-    lines.append("}")
-    lines.append("")
-    lines.append("} // namespace linknames")
-    lines.append("")
-    lines.append("#endif // LINKNAMES_H")
-    lines.append("")
+# The header around its table, verbatim: write_header() puts the table between them.
+HEADER_BEFORE_TABLE = r'''//
+//  censusnames.h
+//
+//  GENERATED FILE -- do not edit by hand.
+//  Produced by linknaming/gen_census_names.cpp + linknaming/gen_census_names_header.py
+//  from tests/pd_codes_up_to_13_crossings.csv (KnotInfo, classical Rolfsen
+//  names) and links_4d_smooth_slice_genus_11_crossings_pd_codes.csv
+//  (Thistlethwaite Link Table names), cross-validated against SnapPy.
+//
 
-    HEADER_PATH.write_text("\n".join(lines))
+#ifndef CENSUSNAMES_H
+#define CENSUSNAMES_H
+
+#include <optional>
+#include <string>
+#include <unordered_map>
+
+#include "linknaming/names.h"
+
+/*! \file utils/surfer/linknaming/census/censusnames.h
+ *  \brief Translates Regina census hit names (e.g. "m004 : #1", "L104001")
+ *  into classical names: Rolfsen knot table names (e.g. "4_1") for knots up
+ *  to 10 crossings -- the largest crossing number Rolfsen's table covers --
+ *  and Thistlethwaite Link Table names (e.g. "L6a1") for links. One shared
+ *  table/namespace rather than a separate one per table: knot and link
+ *  census-hit names are disjoint in practice, so there's no ambiguity in
+ *  looking both up through the same name().
+ */
+
+namespace census {
+
+/**
+ * Base census manifold name (the " : #N" suffix stripped) -> classical
+ * name (a Rolfsen knot name or a Thistlethwaite link name). Keyed by base
+ * name, not the full raw hit string: entries sharing a base name in
+ * Regina's cusped hyperbolic census are different ideal triangulations of
+ * the *same* manifold (verified by identical volume across every such
+ * group), not different manifolds, so matching on the base name is what
+ * makes this table robust to which specific triangulation a caller's
+ * simplify() happens to land on.
+ *
+ * WHAT MAY BE ADDED HERE, AND ON WHAT EVIDENCE. An entry asserts that a
+ * manifold IS a given knot or link, so the two halves of this table do not
+ * carry the same burden of proof. For a KNOT a homeomorphism of complements
+ * settles it outright (Gordon-Luecke), so showing that our own PD-built
+ * complement lands on that census name is enough. For a LINK it settles
+ * nothing on its own: Rolfsen twisting changes a link while preserving its
+ * exterior, so a link entry needs the peripheral test in
+ * cobordism-atlas/tools/identify_far_sides.py, and must not be added from a
+ * complement match alone.
+ *
+ * Do not infer an entry from the shape of a census name either. The Christy
+ * index usually coincides with the Rolfsen index -- L108014 is 8_14 -- but
+ * not always: L108019 is 5_1, the (2,5) torus knot, NOT 8_19, whose
+ * complement is a different manifold. Each entry is verified individually;
+ * see cobordism-atlas/data/name_aliases.csv for the ones established so far
+ * and how.
+ */
+inline const std::unordered_map<std::string, std::string> table = {
+'''
+
+HEADER_AFTER_TABLE = r'''};
+
+/**
+ * Returns the classical name (a Rolfsen knot name like "4_1" or a
+ * Thistlethwaite link name like "L6a1") corresponding to a raw Regina
+ * census hit name (e.g. "m004 : #1" or "L104001"), or nullopt if unknown.
+ * Any " : #N" suffix is stripped before looking up in table (see its
+ * comment above), so callers can pass CensusHit::name() unmodified.
+ */
+inline std::optional<std::string> name(const std::string &censusName) {
+    std::string base = linknaming::stripCensusSuffix(censusName);
+    auto it = table.find(base);
+    if (it == table.end())
+        return std::nullopt;
+    return it->second;
+}
+
+} // namespace census
+
+#endif // CENSUSNAMES_H
+'''
+
+
+def write_header(table):
+    rows = "".join(f'    {{"{escape(census_name)}", "{escape(table[census_name])}"}},\n'
+                   for census_name in sorted(table))
+    HEADER_PATH.write_text(HEADER_BEFORE_TABLE + rows + HEADER_AFTER_TABLE)
 
 
 def escape(s: str) -> str:

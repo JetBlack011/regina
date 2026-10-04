@@ -42,10 +42,10 @@ linknaming::DrawnCurves OutgoingNamer::draw(const Link &curves) const {
     linknaming::DrawnCurves out;
     const size_t n = curves.comps_.size();
     try {
-        std::vector<knotbuilder::EdgeCycle> cycles;
+        std::vector<diagramtriangulation::EdgeCycle> cycles;
         cycles.reserve(n);
         for (const Knot &k : curves.comps_) cycles.push_back(map_.carryCycle(k.edges()));
-        knotbuilder::Diagram d = drawer_.draw(cycles);
+        diagramtriangulation::Diagram d = drawer_.draw(cycles);
 
         bool someLinking = false;
         for (size_t i = 0; i < n && !someLinking; ++i)
@@ -55,9 +55,9 @@ linknaming::DrawnCurves OutgoingNamer::draw(const Link &curves) const {
         out.diagram = d.link();
         out.someLinking = someLinking;
         out.outcome = linknaming::DrawnCurves::Outcome::drawn;
-    } catch (const knotbuilder::NonPlanar &) {
+    } catch (const diagramtriangulation::NonPlanar &) {
         out.outcome = linknaming::DrawnCurves::Outcome::nonPlanar;
-    } catch (const knotbuilder::Degenerate &) {
+    } catch (const diagramtriangulation::Degenerate &) {
         out.outcome = linknaming::DrawnCurves::Outcome::failed;
     } catch (const regina::InvalidArgument &) {
         out.outcome = linknaming::DrawnCurves::Outcome::failed;
@@ -87,14 +87,14 @@ std::optional<std::string> OutgoingNamer::orientedName(
     const std::map<size_t, int> &flips) const {
     if (!linkNamer_) return std::nullopt;
     try {
-        std::vector<knotbuilder::EdgeCycle> cycles;
+        std::vector<diagramtriangulation::EdgeCycle> cycles;
         for (const OrientedCurve &curve : outgoing) {
             if (curve.empty()) continue;
             auto comp = surfaceOf.find(curve.front().edge);
             if (comp == surfaceOf.end()) return std::nullopt;
             auto flip = flips.find(comp->second);
             if (flip == flips.end()) return std::nullopt;
-            knotbuilder::EdgeCycle cyc = map_.carry(outgoingCurve(curve));
+            diagramtriangulation::EdgeCycle cyc = map_.carry(outgoingCurve(curve));
             if (flip->second < 0) {
                 std::reverse(cyc.begin(), cyc.end());
                 for (auto &de : cyc) de.reversed = !de.reversed;

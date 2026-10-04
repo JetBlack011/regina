@@ -180,19 +180,22 @@ void test_round_trip_every_table_pd() {
                              "links_4d_smooth_slice_genus_11_crossings_pd_codes.csv"})
         for (const TableRow &row : readTableRows(data / file)) {
             ++rows;
-            const knotbuilder::PDCode p = knotbuilder::parsePDCode(row.pd);
+            const diagramtriangulation::PDCode p = diagramtriangulation::parsePDCode(row.pd);
             bool ok = true;
-            for (knotbuilder::PDSpelling sp :
-                 {knotbuilder::PDSpelling::semicolons, knotbuilder::PDSpelling::commas})
-                ok = ok && knotbuilder::parsePDCode(knotbuilder::formatPDCode(p, sp)) == p;
+            for (diagramtriangulation::PDSpelling sp :
+                 {diagramtriangulation::PDSpelling::semicolons,
+                  diagramtriangulation::PDSpelling::commas})
+                ok = ok && diagramtriangulation::parsePDCode(
+                               diagramtriangulation::formatPDCode(p, sp)) == p;
             tParse += ok;
             const regina::Link l = linkFromTablePD(row.pd);
             const std::string text =
-                knotbuilder::formatPDCode(l.pdData(), knotbuilder::PDSpelling::semicolons);
+                diagramtriangulation::formatPDCode(l.pdData(),
+                                                   diagramtriangulation::PDSpelling::semicolons);
             const regina::Link back = linkFromTablePD(text);
             link += back.sig<2>(false, false, true) == l.sig<2>(false, false, true) &&
-                    knotbuilder::formatPDCode(back.pdData(),
-                                              knotbuilder::PDSpelling::semicolons) == text;
+                    diagramtriangulation::formatPDCode(back.pdData(),
+                                              diagramtriangulation::PDSpelling::semicolons) == text;
             if (row.pd.rfind("[[", 0) == 0) {
                 ++knots;
                 std::vector<std::array<int, 4>> asWritten = p;
@@ -203,8 +206,8 @@ void test_round_trip_every_table_pd() {
                 std::string compact = row.pd;
                 std::erase(compact, ' ');
                 knotSpelling +=
-                    knotbuilder::formatPDCode(asWritten, knotbuilder::PDSpelling::semicolons) ==
-                    compact;
+                    diagramtriangulation::formatPDCode(
+                        asWritten, diagramtriangulation::PDSpelling::semicolons) == compact;
             }
         }
     EXPECT_EQ(rows, size_t(17153), "every table row read");

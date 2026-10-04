@@ -73,7 +73,7 @@ std::optional<OutgoingLink> orientedOutgoingLink(
                 if (why) *why = "a surface component misses the row";
                 return std::nullopt;
             }
-            knotbuilder::EdgeCycle cyc = map.carry(outgoingCurve(curve));
+            diagramtriangulation::EdgeCycle cyc = map.carry(outgoingCurve(curve));
             if (f->second < 0) {
                 std::reverse(cyc.begin(), cyc.end());
                 for (auto &de : cyc) de.reversed = !de.reversed;

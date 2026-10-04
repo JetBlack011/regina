@@ -8,7 +8,7 @@
  *  \brief Draws edge curves of knotbuilder's triangulation of S^3 as oriented
  *  link diagrams, directly from the triangulation's own geometry.
  *
- *  knotbuilder::buildLink()'s triangulation T of S^3 is one block per
+ *  diagramtriangulation::buildLink()'s triangulation T of S^3 is one block per
  *  crossing, each linearly the box [-1,1]^2 x [0,1] (blockgeometry.h), glued
  *  along walls into S^2 x I, plus two cones. So any edge cycle of T -- in
  *  particular every outgoing link of a cobordism built on T, whose outgoing
@@ -60,7 +60,7 @@
 
 #include "diagramtriangulation/block.h"
 
-namespace knotbuilder {
+namespace diagramtriangulation {
 
 /** One edge of a curve: an edge index of T, and whether it is traversed
  *  from its vertex(1) to its vertex(0). */
@@ -141,7 +141,7 @@ class NonPlanar : public std::runtime_error {
 class DiagramDrawer {
   public:
     /**
-     * \param tri knotbuilder::buildLink()'s triangulation, unmodified (its
+     * \param tri diagramtriangulation::buildLink()'s triangulation, unmodified (its
      *        tetrahedron and vertex labels are what blockCoordinates()
      *        describes).
      * \param crossings the number of crossings (blocks) it was built from.
@@ -180,6 +180,6 @@ class DiagramDrawer {
     std::unique_ptr<Impl> impl_;
 };
 
-} // namespace knotbuilder
+} // namespace diagramtriangulation
 
 #endif

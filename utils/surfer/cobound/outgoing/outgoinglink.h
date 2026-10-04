@@ -9,7 +9,7 @@
  *  \brief Carries a surface's outgoing boundary curves onto knotbuilder's
  *  triangulation T of the incoming link (OutgoingMap, diagramtriangulation/thickening),
  *  oriented as a cobordism from the oriented incoming link -- ready for
- *  knotbuilder::DiagramDrawer.
+ *  diagramtriangulation::DiagramDrawer.
  *
  *  Orientation. A surface's boundary is oriented per connected component of
  *  the surface, each component independently
@@ -59,7 +59,7 @@ std::optional<std::map<size_t, int>> incomingFlips(
 
 /** A surface's outgoing link, oriented as a cobordism from the incoming link. */
 struct OutgoingLink {
-    std::vector<knotbuilder::EdgeCycle> curves; /**< In knotbuilder's T. */
+    std::vector<diagramtriangulation::EdgeCycle> curves; /**< In knotbuilder's T. */
     std::vector<size_t> surfaceComponent;       /**< Per curve. */
     /** The incoming side, per incoming curve: the index of its first edge in
      *  the incoming boundary component's built triangulation, and the surface

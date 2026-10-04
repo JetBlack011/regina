@@ -170,7 +170,7 @@ struct StoredBoundary {
     /** directComponents() for boundary component `bc`'s Link; false when
      *  the directions are unknown. */
     bool direct(size_t bc, const Link &link,
-                std::vector<std::vector<peripheral::DirectedEdge>> &directions,
+                std::vector<std::vector<complement::DirectedEdge>> &directions,
                 std::vector<long> &surfaceComponent) const;
 };
 
@@ -214,9 +214,9 @@ int runSig() {
 
 /** Writes one record: the drilled complement, its meridians, and provenance. */
 void writeRecord(const std::string &id, size_t bc,
-                 const peripheral::DrilledWithMeridians &drilled,
+                 const complement::DrilledWithMeridians &drilled,
                  const std::vector<long> &surfaceComponent) {
-    const std::string tri = peripheral::snapPeaOriented(drilled.tri);
+    const std::string tri = complement::snapPeaOriented(drilled.tri);
     std::cout << "RECORD " << id << ' ' << bc << ' '
               << drilled.meridians.size() << "\n";
     for (size_t c = 0; c < drilled.meridians.size(); ++c)
@@ -224,9 +224,9 @@ void writeRecord(const std::string &id, size_t bc,
                   << (c < surfaceComponent.size() ? surfaceComponent[c] : -1)
                   << "\n";
     for (size_t c = 0; c < drilled.meridians.size(); ++c) {
-        const peripheral::Curve &mu = drilled.meridians[c];
+        const complement::Curve &mu = drilled.meridians[c];
         std::cout << "MERIDIAN " << c << ' ' << mu.size();
-        for (const peripheral::Crossing &x : mu)
+        for (const complement::Crossing &x : mu)
             std::cout << ' ' << x.tet << ' ' << x.vertex << ' ' << x.face
                       << ' ' << x.sign;
         std::cout << "\n";
@@ -251,7 +251,7 @@ void writeRecord(const std::string &id, size_t bc,
 bool directComponents(
     const Link &link, const std::vector<OrientedCurve> &curves,
     const std::map<const regina::Edge<3> *, size_t> &surfaceOf,
-    std::vector<std::vector<peripheral::DirectedEdge>> &directions,
+    std::vector<std::vector<complement::DirectedEdge>> &directions,
     std::vector<long> &surfaceComponent) {
     std::map<const regina::Edge<3> *, bool> reversedOf;
     for (const OrientedCurve &curve : curves)
@@ -275,7 +275,7 @@ bool directComponents(
 }
 
 bool StoredBoundary::direct(size_t bc, const Link &link,
-                            std::vector<std::vector<peripheral::DirectedEdge>> &directions,
+                            std::vector<std::vector<complement::DirectedEdge>> &directions,
                             std::vector<long> &surfaceComponent) const {
     if (!haveDirections)
         return false;
@@ -306,7 +306,7 @@ int runDump() {
 
         for (const auto &[bc, link] : decoded.surface->boundaryLinks()) {
             try {
-                std::vector<std::vector<peripheral::DirectedEdge>> directions;
+                std::vector<std::vector<complement::DirectedEdge>> directions;
                 std::vector<long> surfaceComponent;
                 const bool directed =
                     boundary.direct(bc, link, directions, surfaceComponent);
@@ -316,9 +316,9 @@ int runDump() {
                 // +- per component, and the -1 in ORIENT says so. Falling
                 // back silently to a *signed-looking* result would be the
                 // unsound thing.
-                peripheral::DrilledWithMeridians drilled =
-                    directed ? peripheral::buildComplementWithPeripheral(link, directions)
-                             : peripheral::buildComplementWithPeripheral(link);
+                complement::DrilledWithMeridians drilled =
+                    directed ? complement::buildComplementWithPeripheral(link, directions)
+                             : complement::buildComplementWithPeripheral(link);
                 if (!directed)
                     surfaceComponent.assign(link.countComponents(), -1);
 
@@ -343,7 +343,7 @@ int runDump() {
  * adds tetrahedra, so a cut piece no longer knows which cusp came from which
  * curve -- and that correspondence IS the meridian labelling, without which a
  * multi-component factor cannot be named at all. See
- * peripheral::buildComplementWithPeripheral(link, components, directions).
+ * complement::buildComplementWithPeripheral(link, components, directions).
  *
  * stdin:  "<id> <boundary component> <comma-separated component indices>
  *          <pairsig>"
@@ -398,7 +398,7 @@ int runDumpSubset() {
                 continue;
             found = true;
             try {
-                std::vector<std::vector<peripheral::DirectedEdge>> directions;
+                std::vector<std::vector<complement::DirectedEdge>> directions;
                 std::vector<long> surfaceComponent;
                 const bool directed =
                     boundary.direct(bc, link, directions, surfaceComponent);
@@ -407,7 +407,7 @@ int runDumpSubset() {
                 // order the caller listed it, so the record's component
                 // numbering matches what was asked for rather than the
                 // whole link's.
-                std::vector<std::vector<peripheral::DirectedEdge>> subset;
+                std::vector<std::vector<complement::DirectedEdge>> subset;
                 std::vector<long> subsetComponent;
                 for (int c : wanted) {
                     if (c < 0 || c >= link.countComponents())
@@ -421,10 +421,10 @@ int runDumpSubset() {
                     }
                 }
 
-                peripheral::DrilledWithMeridians drilled =
-                    directed ? peripheral::buildComplementWithPeripheral(
+                complement::DrilledWithMeridians drilled =
+                    directed ? complement::buildComplementWithPeripheral(
                                    link, wanted, subset)
-                             : peripheral::buildComplementWithPeripheral(link, wanted);
+                             : complement::buildComplementWithPeripheral(link, wanted);
                 if (!directed)
                     subsetComponent.assign(wanted.size(), -1);
 
@@ -466,8 +466,8 @@ int runDumpLink() {
         const std::string pd = line.substr(space + 1);
 
         try {
-            knotbuilder::TriangulationWithLink built =
-                knotbuilder::buildLink(knotbuilder::parsePDCode(pd));
+            diagramtriangulation::TriangulationWithLink built =
+                diagramtriangulation::buildLink(diagramtriangulation::parsePDCode(pd));
             Link link(built.tri, built.edges);
 
             // knotbuilder hands back edges and their traversal directions as
@@ -478,14 +478,14 @@ int runDumpLink() {
                 reversedOf[built.edges[i]] =
                     i < built.reversed.size() ? built.reversed[i] : false;
 
-            std::vector<std::vector<peripheral::DirectedEdge>> directions(
+            std::vector<std::vector<complement::DirectedEdge>> directions(
                 link.countComponents());
             for (int c = 0; c < link.countComponents(); ++c)
                 for (const regina::Edge<3> *e : link.comps_[c].edges())
                     directions[c].push_back({e, reversedOf[e]});
 
-            peripheral::DrilledWithMeridians drilled =
-                peripheral::buildComplementWithPeripheral(link, directions);
+            complement::DrilledWithMeridians drilled =
+                complement::buildComplementWithPeripheral(link, directions);
             std::vector<long> surfaceComponent(link.countComponents(), 0);
             writeRecord(id, 0, drilled, surfaceComponent);
         } catch (const std::exception &e) {
@@ -506,7 +506,7 @@ int runSlope() {
         size_t bc = 0, numComponents = 0;
         header >> id >> bc >> numComponents;
 
-        std::vector<peripheral::Curve> meridians(numComponents);
+        std::vector<complement::Curve> meridians(numComponents);
         std::string tri;
         bool ok = true;
 
@@ -520,7 +520,7 @@ int runSlope() {
                     continue;
                 }
                 for (size_t k = 0; k < count; ++k) {
-                    peripheral::Crossing x{};
+                    complement::Crossing x{};
                     in >> x.tet >> x.vertex >> x.face >> x.sign;
                     meridians[comp].push_back(x);
                 }
@@ -545,7 +545,7 @@ int runSlope() {
         }
 
         try {
-            peripheral::SnapPeaFile file = peripheral::parseSnapPea(tri);
+            complement::SnapPeaFile file = complement::parseSnapPea(tri);
             for (size_t c = 0; c < meridians.size(); ++c) {
                 // Which cusp this component became is SnapPea's choice, not
                 // ours: we hand it a file with no cusp indices and it works
@@ -553,7 +553,7 @@ int runSlope() {
                 // crossings, which must all sit on one cusp.
                 int cusp = -1;
                 bool consistent = true;
-                for (const peripheral::Crossing &x : meridians[c]) {
+                for (const complement::Crossing &x : meridians[c]) {
                     if (x.tet >= file.tets.size()) {
                         consistent = false;
                         break;
@@ -571,10 +571,10 @@ int runSlope() {
                     continue;
                 }
 
-                auto [a, b] = peripheral::slope(
+                auto [a, b] = complement::slope(
                     file, cusp,
-                    peripheral::toField(meridians[c], file.tets.size()));
-                auto [cc, d] = peripheral::completeBasis(a, b);
+                    complement::toField(meridians[c], file.tets.size()));
+                auto [cc, d] = complement::completeBasis(a, b);
                 std::cout << "SLOPE " << id << ' ' << bc << ' ' << c << ' '
                           << cusp << ' ' << a << ' ' << b << ' ' << cc << ' '
                           << d << "\n";

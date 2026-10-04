@@ -71,14 +71,14 @@ const char *FIGURE_EIGHT_PD = "4 2 5 1 8 6 1 5 6 3 7 4 2 7 3 8"; // 4_1
 
 regina::Triangulation<3>
 buildFromPD(const char *pd, std::vector<const regina::Edge<3> *> &edges) {
-    knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pd);
+    diagramtriangulation::PDCode pdcode = diagramtriangulation::parsePDCode(pd);
     // Build into a named local and std::move() it out explicitly (rather
     // than destructuring and returning the destructured triangulation),
     // since `edges` must keep pointing into whichever Triangulation<3>
     // object ends up owning the simplices -- an explicit move guarantees
     // that, whereas returning a structured binding by value is not
     // guaranteed to elide/move rather than copy.
-    auto result = knotbuilder::buildLink(pdcode);
+    auto result = diagramtriangulation::buildLink(pdcode);
     edges = std::move(result.edges);
     return std::move(result.tri);
 }
@@ -307,8 +307,8 @@ const char *L6A3_1_PD = "PD[X[10;2;11;1];X[2;10;3;9];X[8;4;9;3];X[12;6;7;5];"
 
 void checkDirectedTraversal(const char *pd, int expectedComponents,
                             const std::string &name) {
-    knotbuilder::PDCode pdcode = knotbuilder::parsePDCode(pd);
-    auto result = knotbuilder::buildLink(pdcode);
+    diagramtriangulation::PDCode pdcode = diagramtriangulation::parsePDCode(pd);
+    auto result = diagramtriangulation::buildLink(pdcode);
 
     EXPECT_EQ(result.tri.isValid(), true, name + ": triangulation is valid");
     EXPECT_EQ(result.tri.isSphere(), true, name + ": triangulation is S³");
@@ -341,8 +341,8 @@ void test_knotbuilder_l6a3_variants_tag_differently() {
     std::cout << "\n--- knotbuilder: L6a3{0} and L6a3{1} produce genuinely "
                  "different reversed[] tags ---\n";
 
-    auto result0 = knotbuilder::buildLink(knotbuilder::parsePDCode(L6A3_0_PD));
-    auto result1 = knotbuilder::buildLink(knotbuilder::parsePDCode(L6A3_1_PD));
+    auto result0 = diagramtriangulation::buildLink(diagramtriangulation::parsePDCode(L6A3_0_PD));
+    auto result1 = diagramtriangulation::buildLink(diagramtriangulation::parsePDCode(L6A3_1_PD));
 
     EXPECT_EQ(result0.reversed.size(), result1.reversed.size(),
               "both PD codes have the same crossing count, so the same "
@@ -356,7 +356,7 @@ void test_knotbuilder_l6a3_variants_tag_differently() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// knotbuilder::reduceVertices(): pinches away every internal edge except the
+// diagramtriangulation::reduceVertices(): pinches away every internal edge except the
 // preserved knot/link edges and loop edges, so a caller can shrink
 // buildLink()'s (many-tetrahedra-per-crossing) output down while continuing
 // to work with the same knot/link edges. Checks (for both a knot and a
@@ -375,7 +375,7 @@ void checkReduceVertices(const char *name, const char *pd,
     std::vector<const regina::Edge<3> *> edges;
     auto tri = buildFromPD(pd, edges);
 
-    auto reduced = knotbuilder::reduceVertices(tri, edges);
+    auto reduced = diagramtriangulation::reduceVertices(tri, edges);
 
     EXPECT_EQ(reduced.tri.isValid(), true,
               std::string(name) + ": reduced triangulation is valid");
@@ -434,7 +434,7 @@ void checkReduceVertices(const char *name, const char *pd,
                   "fixpoint)");
 
     auto reducedAgain =
-        knotbuilder::reduceVertices(reduced.tri, reduced.edges);
+        diagramtriangulation::reduceVertices(reduced.tri, reduced.edges);
     EXPECT_EQ(reducedAgain.tri.countVertices(), reduced.tri.countVertices(),
               std::string(name) +
                   ": reduceVertices() is idempotent on its own output");
@@ -471,9 +471,9 @@ void test_knotbuilder_nonalternating_regression() {
     // Same 4-valent shadow as the Hopf link (crossing 0 unchanged), but
     // crossing 1's tuple [2,1,3,0] is cyclically rotated by one position to
     // [1,3,0,2], flipping which pair of arms is the under-strand.
-    knotbuilder::PDCode pd = {{0, 3, 1, 2}, {1, 3, 0, 2}};
+    diagramtriangulation::PDCode pd = {{0, 3, 1, 2}, {1, 3, 0, 2}};
 
-    auto [tri, edges, reversed] = knotbuilder::buildLink(pd);
+    auto [tri, edges, reversed] = diagramtriangulation::buildLink(pd);
 
     EXPECT_EQ(tri.isValid(), true,
               "non-alternating shadow: triangulation is valid");

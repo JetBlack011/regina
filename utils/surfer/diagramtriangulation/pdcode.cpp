@@ -10,7 +10,7 @@
 #include <cctype>
 #include <sstream>
 
-knotbuilder::PDCode knotbuilder::parsePDCode(std::string pdcode_str) {
+diagramtriangulation::PDCode diagramtriangulation::parsePDCode(std::string pdcode_str) {
     std::vector<std::array<int, 4>> pdcode;
 
     for (char &c : pdcode_str) {

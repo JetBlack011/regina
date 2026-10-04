@@ -77,7 +77,7 @@ void test_collar_outgoing_is_the_incoming(const std::string &name, const std::st
                                      const std::string &want,
                                      const linknaming::SignatureTable &table) {
     Thickened thickened(pd);
-    outgoing::OutgoingNamer namer(thickened.link.tri, knotbuilder::parsePDCode(pd).size(),
+    outgoing::OutgoingNamer namer(thickened.link.tri, diagramtriangulation::parsePDCode(pd).size(),
                                 *thickened.cob, table);
     Skeleton<4, 2> skeleton(thickened.tri);
     KnottedSurface collar(skeleton, thickened.seedFaces);
@@ -135,8 +135,8 @@ std::string linkRoute(const Link &) { return "link"; }
 
 void test_complement_namers() {
     // The 2-component unlink, as unlinknaming_test's kUnlink2PD.
-    const knotbuilder::TriangulationWithLink built =
-        knotbuilder::buildLink({{0, 3, 1, 2}, {1, 3, 0, 2}});
+    const diagramtriangulation::TriangulationWithLink built =
+        diagramtriangulation::buildLink({{0, 3, 1, 2}, {1, 3, 0, 2}});
     const Link both(built.tri, built.edges);
     EXPECT_EQ(both.countComponents(), 2, "fixture: two components");
     const Link one(built.tri, both.comps_[0].edges());

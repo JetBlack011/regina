@@ -18,7 +18,7 @@ using linknaming::GaussDiagram;
 
 namespace bounds {
 
-GaussDiagram gaussOf(const knotbuilder::Diagram &d) {
+GaussDiagram gaussOf(const diagramtriangulation::Diagram &d) {
   GaussDiagram g;
   for (const auto &c : d.crossings) g.signs.push_back(c.sign);
   g.comps = d.gauss;
@@ -47,7 +47,8 @@ std::string diagramPD(const GaussDiagram &d) {
           throw std::runtime_error("diagramPD: an over-everywhere component is linked");
     }
   }
-  return knotbuilder::formatPDCode(l.pdData(), knotbuilder::PDSpelling::semicolons);
+  return diagramtriangulation::formatPDCode(l.pdData(),
+                                     diagramtriangulation::PDSpelling::semicolons);
 }
 
 CobordismAssembler::CobordismAssembler(CobordismGraph &graph, LinkRegistry &links, SearchedLink searched,
@@ -171,7 +172,7 @@ AddedCobordism CobordismAssembler::addRead(const outgoing::OutgoingLink &read, i
   }
 
   // The outgoing link, drawn, split into pieces, each simplified and interned.
-  const knotbuilder::Diagram d = redraw_->drawer().draw(link->curves);
+  const diagramtriangulation::Diagram d = redraw_->drawer().draw(link->curves);
   const GaussDiagram whole = gaussOf(d);
   const size_t m = whole.components();
   // One pass: simplify() is randomised, so each simplified piece must stay

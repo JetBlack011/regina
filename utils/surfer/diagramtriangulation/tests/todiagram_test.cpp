@@ -1,7 +1,7 @@
 //
 //  todiagram_test.cpp
 //
-//  knotbuilder::DiagramDrawer, against independent answers:
+//  diagramtriangulation::DiagramDrawer, against independent answers:
 //
 //    1. The block model is an exact embedding of knotbuilder's block.
 //    2. Drawing knotbuilder's own link from its triangulation gives back
@@ -39,7 +39,7 @@
 #include "diagramtriangulation/fromdiagram.h"
 #include "linknaming/complement/linkcomplement.h"
 
-using namespace knotbuilder;
+using namespace diagramtriangulation;
 
 static int passed = 0;
 static int failed_count = 0;
@@ -120,7 +120,8 @@ bool sameUpToRelabelling(const std::vector<std::vector<long>> &a,
 // backwards.
 bool reproduce(const std::string &name, const std::string &pd, bool verbose) {
     auto input = parsePD(pd);
-    auto [tri, edges, reversed] = knotbuilder::buildLink(knotbuilder::parsePDCode(pd));
+    auto [tri, edges, reversed] =
+        diagramtriangulation::buildLink(diagramtriangulation::parsePDCode(pd));
     DiagramDrawer drawer(tri, input.size());
     Diagram d = drawer.draw(DiagramDrawer::cyclesOf(edges, reversed));
     regina::Link in = regina::Link::fromPD(input.begin(), input.end());
@@ -182,7 +183,8 @@ void test_reproduce_battery() {
 void test_reversed_component_is_caught() {
     const std::string pd = "PD[X[4; 1; 3; 2]; X[2; 3; 1; 4]]"; // L2a1{0}
     auto input = parsePD(pd);
-    auto [tri, edges, reversed] = knotbuilder::buildLink(knotbuilder::parsePDCode(pd));
+    auto [tri, edges, reversed] =
+        diagramtriangulation::buildLink(diagramtriangulation::parsePDCode(pd));
     DiagramDrawer drawer(tri, input.size());
     auto cycles = DiagramDrawer::cyclesOf(edges, reversed);
     Diagram asIs = drawer.draw(cycles);
@@ -250,7 +252,8 @@ void test_random_cycles_against_drilling() {
     std::mt19937 rng(20260926);
     int agree = 0, total = 0, throughWalls = 0;
     for (const auto &[name, pd] : rows) {
-        auto [tri, edges, reversed] = knotbuilder::buildLink(knotbuilder::parsePDCode(pd));
+        auto [tri, edges, reversed] =
+        diagramtriangulation::buildLink(diagramtriangulation::parsePDCode(pd));
         DiagramDrawer drawer(tri, parsePD(pd).size());
         for (int i = 0; i < 40; ++i) {
             auto cycles = randomCycle(tri, rng, 6 + rng() % 18);
@@ -365,7 +368,8 @@ void test_every_short_cycle_draws_planar() {
     long cycles = 0, drawn = 0, degenerate = 0, invalid = 0, nonPlanar = 0;
     long drilled = 0, drilledAgree = 0, drillMs = 0;
     for (const auto &[name, pd] : rows) {
-        auto [tri, edges, reversed] = knotbuilder::buildLink(knotbuilder::parsePDCode(pd));
+        auto [tri, edges, reversed] =
+        diagramtriangulation::buildLink(diagramtriangulation::parsePDCode(pd));
         DiagramDrawer drawer(tri, parsePD(pd).size());
         const std::vector<EdgeCycle> all = allShortCycles(tri, maxLen);
         std::cout << "  " << name << ": " << all.size() << " closed curves\n";
@@ -441,7 +445,8 @@ void test_two_curves_at_corners() {
     long pairs = 0, drawings = 0, degenerate = 0, nonPlanar = 0, disagree = 0;
     for (const auto &[name, pd] : rows) {
         const size_t nb = parsePD(pd).size();
-        auto [tri, edges, reversed] = knotbuilder::buildLink(knotbuilder::parsePDCode(pd));
+        auto [tri, edges, reversed] =
+        diagramtriangulation::buildLink(diagramtriangulation::parsePDCode(pd));
         DiagramDrawer drawer(tri, nb);
         // Each region's (bottom, top) vertex pair, from the block model.
         std::set<std::pair<size_t, size_t>> corners;

@@ -27,7 +27,7 @@
  *  (PDSpelling).
  */
 
-namespace knotbuilder {
+namespace diagramtriangulation {
 
 /** A planar diagram code: one 4-tuple of strand labels per crossing. */
 using PDCode = std::vector<std::array<int, 4>>;
@@ -62,6 +62,6 @@ std::string formatPDCode(const std::vector<std::array<Int, 4>> &pd,
     return o.str();
 }
 
-} // namespace knotbuilder
+} // namespace diagramtriangulation
 
 #endif // SURFER_DIAGRAMTRIANGULATION_PDCODE_H
