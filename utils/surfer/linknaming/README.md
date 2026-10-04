@@ -42,8 +42,8 @@ and `solve` bounds an `outgoing_names_file` entry of 2 or more components from
 its subject only when it is a name. Anything weaker is a proved
 **description**: what it says is true, but it does not single out one link.
 Whether an outgoing link carries a bound to its subject is a separate rule,
-by its component count (`cobound/README.md`, "Which outgoing links bear a
-bound"): the search records the string, not `isName`, so a 2-component
+by its component count (`cobound/README.md`, "The atlas solver (`cobound
+solve`)"): the search records the string, not `isName`, so a 2-component
 `diagram:<sig>` name bears nothing there, and a one-component description can
 bear.
 

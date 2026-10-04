@@ -132,8 +132,8 @@ refuses to start without. `UnlinkBoundaryNamer` names census-free
 signature); `cobound` supplies the slice-genus search's own. A namer may say
 `Unknot` or `<n>-component unlink` only with a proof. The search reads no
 other name (it counts curves), so any other name answers to its reader.
-`cobound solve` gates bounds by the curves' count (`cobound/README.md`, "Which
-outgoing links bear a bound"): one curve bears a bound whatever it is called,
+`cobound solve` gates bounds by the curves' count (`cobound/README.md`, "The
+atlas solver (`cobound solve`)"): one curve bears a bound whatever it is called,
 so a name of one curve must denote one knot up to mirror, which a name taken
 from its complement does (Gordon–Luecke; cobound's own `|` descriptions are
 the exception described there); 2 or more curves bear nothing unless they are

@@ -204,8 +204,8 @@ struct SurfaceSearchLimits {
  * count: one curve bears a bound whatever it is called, so a name of one
  * curve must denote one knot up to mirror (a name taken from its complement
  * does, by Gordon-Luecke), and 2 or more curves bear nothing unless they are
- * an unlink or proved by another input. See cobound/README.md, "Which
- * outgoing links bear a bound".
+ * an unlink or proved by another input. See cobound/README.md, "The atlas
+ * solver (`cobound solve`)", on which outgoing links bear a bound.
  */
 class BoundaryNamer {
   public:
