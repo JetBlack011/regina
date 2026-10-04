@@ -837,11 +837,12 @@ counts: its `genus` is its tubed genus.
   cobordism (`outgoing_resolutions`, or an entry of `outgoing_names_file`).
   One component bears whatever it is called (Gordon–Luecke: the complement
   determines a knot up to mirror, which g₄ does not see). Two or more
-  components not proved per cobordism bear nothing, even under a name: one
-  complement belongs to infinitely many links, with different slice genera,
-  and a max/min over a base name's orientation variants is not a bound over
-  the real possibilities. Such cobordisms are still recorded; the solver
-  declines them. A description therefore bears nothing by its count, not by
+  components, neither an unlink nor proved per cobordism, bear nothing, even
+  under a name: one complement belongs to infinitely many links, with
+  different slice genera, and a max/min over a base name's orientation
+  variants is not a bound over the real possibilities. Such cobordisms are
+  still recorded; the solver declines them. A description therefore bears
+  nothing by its count, not by
   being a description: a `complement:` description always has 2 or more
   components, but a one-component `|` description (a composite knot whose
   summands' relative chirality is not pinned) bears, through the reverse
